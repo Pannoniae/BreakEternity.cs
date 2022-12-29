@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BreakEternity.Tests", "BreakEternity.Tests\BreakEternity.Tests.csproj", "{A0DF51AD-6D01-441A-8B75-166F4C10BDD2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BreakEternity", "BreakEternity\BreakEternity.csproj", "{59ADD4B9-9976-4971-A536-236F3D95BDD1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A0DF51AD-6D01-441A-8B75-166F4C10BDD2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0DF51AD-6D01-441A-8B75-166F4C10BDD2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0DF51AD-6D01-441A-8B75-166F4C10BDD2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0DF51AD-6D01-441A-8B75-166F4C10BDD2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{59ADD4B9-9976-4971-A536-236F3D95BDD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59ADD4B9-9976-4971-A536-236F3D95BDD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59ADD4B9-9976-4971-A536-236F3D95BDD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59ADD4B9-9976-4971-A536-236F3D95BDD1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
