@@ -16,7 +16,6 @@ using UnityEngine;
 [Serializable]
 #endif
 public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDouble> {
-
     private const long MAX_SIGNIFICANT_DIGITS = 17; //Maximum number of digits of precision to assume in Number
 
     private const double
@@ -40,7 +39,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
     private const bool IGNORE_COMMAS = true;
     private const bool COMMAS_ARE_dec_POINTS = false;
-    
+
     public static double powerOf10(int power) {
         // We need this lookup table because Math.pow(10, exponent)
         // when exponent's absolute value is large is slightly inaccurate.
@@ -384,27 +383,19 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         replaceFromString(value);
     }
 
-    public static bool isNaN(BigDouble value)
-    {
-        return double.IsNaN(value.mag);
-    }
-
     public static BigDouble PositiveInfinity = new(double.PositiveInfinity);
 
-    public static bool isPositiveInfinity(BigDouble value)
-    {
+    public static bool isPositiveInfinity(BigDouble value) {
         return double.IsPositiveInfinity(value.mag);
     }
 
     public static BigDouble NegativeInfinity = new(double.NegativeInfinity);
 
-    public static bool isNegativeInfinity(BigDouble value)
-    {
+    public static bool isNegativeInfinity(BigDouble value) {
         return double.IsNegativeInfinity(value.mag);
     }
 
-    public static bool isInfinity(BigDouble value)
-    {
+    public static bool isInfinity(BigDouble value) {
         return double.IsInfinity(value.mag);
     }
 
@@ -413,26 +404,28 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             if (sign == 0) {
                 return 0;
             }
-            else if (layer == 0) {
-                var exp = Math.Floor(Math.Log10(mag));
-                //handle special case 5e-324
-                double man;
-                if (mag == 5e-324) {
-                    man = 5;
-                }
-                else {
-                    man = mag / powerOf10((int)exp);
-                }
 
-                return sign * man;
-            }
-            else if (layer == 1) {
-                var residue = mag - Math.Floor(mag);
-                return sign * Math.Pow(10, residue);
-            }
-            else {
-                //mantissa stops being relevant past 1e9e15 / ee15.954
-                return sign;
+            switch (layer) {
+                case 0: {
+                    var exp = Math.Floor(Math.Log10(mag));
+                    //handle special case 5e-324
+                    double man;
+                    if (mag == 5e-324) {
+                        man = 5;
+                    }
+                    else {
+                        man = mag / powerOf10((int)exp);
+                    }
+
+                    return sign * man;
+                }
+                case 1: {
+                    var residue = mag - Math.Floor(mag);
+                    return sign * Math.Pow(10, residue);
+                }
+                default:
+                    //mantissa stops being relevant past 1e9e15 / ee15.954
+                    return sign;
             }
         }
         set {
@@ -556,336 +549,334 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return fromString(value);
     }
 
-    public static BigDouble abs(dynamic value) {
-        return D(value).abs();
+    public static BigDouble abs(BigDouble value) {
+        return value.abs();
     }
 
-    public static BigDouble neg(dynamic value) {
-        return D(value).neg();
+    public static BigDouble neg(BigDouble value) {
+        return value.neg();
     }
 
-    public static BigDouble negate(dynamic value) {
-        return D(value).neg();
+    public static BigDouble negate(BigDouble value) {
+        return value.neg();
     }
 
-    public static BigDouble negated(dynamic value) {
-        return D(value).neg();
+    public static BigDouble negated(BigDouble value) {
+        return value.neg();
     }
 
-    public static BigDouble signum(dynamic value) {
-        return D(value).sign;
+    public static BigDouble signum(BigDouble value) {
+        return value.sign;
     }
 
-    public static BigDouble sgn(dynamic value) {
-        return D(value).sign;
+    public static BigDouble sgn(BigDouble value) {
+        return value.sign;
     }
 
-    public static BigDouble round(dynamic value) {
-        return D(value).round();
+    public static BigDouble round(BigDouble value) {
+        return value.round();
     }
 
-    public static BigDouble floor(dynamic value) {
-        return D(value).floor();
+    public static BigDouble floor(BigDouble value) {
+        return value.floor();
     }
 
-    public static BigDouble ceil(dynamic value) {
-        return D(value).ceil();
+    public static BigDouble ceil(BigDouble value) {
+        return value.ceil();
     }
 
-    public static BigDouble trunc(dynamic value) {
-        return D(value).trunc();
+    public static BigDouble trunc(BigDouble value) {
+        return value.trunc();
     }
 
-    public static BigDouble add(dynamic value, dynamic other) {
-        return D(value).add(other);
+    public static BigDouble add(BigDouble value, BigDouble other) {
+        return value.add(other);
     }
 
-    public static BigDouble plus(dynamic value, dynamic other) {
-        return D(value).add(other);
+    public static BigDouble plus(BigDouble value, BigDouble other) {
+        return value.add(other);
     }
 
-    public static BigDouble sub(dynamic value, dynamic other) {
-        return D(value).sub(other);
+    public static BigDouble sub(BigDouble value, BigDouble other) {
+        return value.sub(other);
     }
 
-    public static BigDouble subtract(dynamic value, dynamic other) {
-        return D(value).sub(other);
+    public static BigDouble subtract(BigDouble value, BigDouble other) {
+        return value.sub(other);
     }
 
-    public static BigDouble minus(dynamic value, dynamic other) {
-        return D(value).sub(other);
+    public static BigDouble minus(BigDouble value, BigDouble other) {
+        return value.sub(other);
     }
 
-    public static BigDouble mul(dynamic value, dynamic other) {
-        return D(value).mul(other);
+    public static BigDouble mul(BigDouble value, BigDouble other) {
+        return value.mul(other);
     }
 
-    public static BigDouble multiply(dynamic value, dynamic other) {
-        return D(value).mul(other);
+    public static BigDouble multiply(BigDouble value, BigDouble other) {
+        return value.mul(other);
     }
 
-    public static BigDouble times(dynamic value, dynamic other) {
-        return D(value).mul(other);
+    public static BigDouble times(BigDouble value, BigDouble other) {
+        return value.mul(other);
     }
 
-    public static BigDouble div(dynamic value, dynamic other) {
-        return D(value).div(other);
+    public static BigDouble div(BigDouble value, BigDouble other) {
+        return value.div(other);
     }
 
-    public static BigDouble divide(dynamic value, dynamic other) {
-        return D(value).div(other);
+    public static BigDouble divide(BigDouble value, BigDouble other) {
+        return value.div(other);
     }
 
-    public static BigDouble recip(dynamic value) {
-        return D(value).recip();
+    public static BigDouble recip(BigDouble value) {
+        return value.recip();
     }
 
-    public static BigDouble reciprocal(dynamic value) {
-        return D(value).recip();
+    public static BigDouble reciprocal(BigDouble value) {
+        return value.recip();
     }
 
-    public static BigDouble reciprocate(dynamic value) {
-        return D(value).reciprocate();
+    public static BigDouble reciprocate(BigDouble value) {
+        return value.reciprocate();
     }
 
-    public static int cmp(dynamic value, dynamic other) {
-        return D(value).cmp(other);
+    public static int cmp(BigDouble value, BigDouble other) {
+        return value.cmp(other);
     }
 
-    public static int cmpabs(dynamic value, dynamic other) {
-        return D(value).cmpabs(other);
+    public static int cmpabs(BigDouble value, BigDouble other) {
+        return value.cmpabs(other);
     }
 
-    public static int compare(dynamic value, dynamic other) {
-        return D(value).cmp(other);
+    public static int compare(BigDouble value, BigDouble other) {
+        return value.cmp(other);
     }
 
-    public static bool isNaN(dynamic value) {
-        value = D(value);
+    public static bool isNaN(BigDouble value) {
         return double.IsNaN(value.sign) || double.IsNaN(value.layer) || double.IsNaN(value.mag);
     }
 
-    public static bool isFinite(dynamic value) {
-        value = D(value);
+    public static bool isFinite(BigDouble value) {
         return double.IsFinite(value.sign) && double.IsFinite(value.layer) && double.IsFinite(value.mag);
     }
 
-    public static bool eq(dynamic value, dynamic other) {
-        return D(value).eq(other);
+    public static bool eq(BigDouble value, BigDouble other) {
+        return value.eq(other);
     }
 
-    public static bool equals(dynamic value, dynamic other) {
-        return D(value).eq(other);
+    public static bool equals(BigDouble value, BigDouble other) {
+        return value.eq(other);
     }
 
-    public static bool neq(dynamic value, dynamic other) {
-        return D(value).neq(other);
+    public static bool neq(BigDouble value, BigDouble other) {
+        return value.neq(other);
     }
 
-    public static BigDouble notEquals(dynamic value, dynamic other) {
-        return D(value).notEquals(other);
+    public static bool notEquals(BigDouble value, BigDouble other) {
+        return value.notEquals(other);
     }
 
-    public static BigDouble lt(dynamic value, dynamic other) {
-        return D(value).lt(other);
+    public static bool lt(BigDouble value, BigDouble other) {
+        return value.lt(other);
     }
 
-    public static BigDouble lte(dynamic value, dynamic other) {
-        return D(value).lte(other);
+    public static bool lte(BigDouble value, BigDouble other) {
+        return value.lte(other);
     }
 
-    public static bool gt(dynamic value, dynamic other) {
-        return D(value).gt(other);
+    public static bool gt(BigDouble value, BigDouble other) {
+        return value.gt(other);
     }
 
-    public static bool gte(dynamic value, dynamic other) {
-        return D(value).gte(other);
+    public static bool gte(BigDouble value, BigDouble other) {
+        return value.gte(other);
     }
 
-    public static BigDouble max(dynamic value, dynamic other) {
-        return D(value).max(other);
+    public static BigDouble max(BigDouble value, BigDouble other) {
+        return value.max(other);
     }
 
-    public static BigDouble min(dynamic value, dynamic other) {
-        return D(value).min(other);
+    public static BigDouble min(BigDouble value, BigDouble other) {
+        return value.min(other);
     }
 
-    public static BigDouble minabs(dynamic value, dynamic other) {
-        return D(value).minabs(other);
+    public static BigDouble minabs(BigDouble value, BigDouble other) {
+        return value.minabs(other);
     }
 
-    public static BigDouble maxabs(dynamic value, dynamic other) {
-        return D(value).maxabs(other);
+    public static BigDouble maxabs(BigDouble value, BigDouble other) {
+        return value.maxabs(other);
     }
 
-    public static BigDouble clamp(dynamic value, dynamic min, dynamic max) {
-        return D(value).clamp(min, max);
+    public static BigDouble clamp(BigDouble value, BigDouble min, BigDouble max) {
+        return value.clamp(min, max);
     }
 
-    public static BigDouble clampMin(dynamic value, dynamic min) {
-        return D(value).clampMin(min);
+    public static BigDouble clampMin(BigDouble value, BigDouble min) {
+        return value.clampMin(min);
     }
 
-    public static BigDouble clampMax(dynamic value, dynamic max) {
-        return D(value).clampMax(max);
+    public static BigDouble clampMax(BigDouble value, BigDouble max) {
+        return value.clampMax(max);
     }
 
-    public static int cmpTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).cmp_tolerance(other, tolerance);
+    public static int cmpTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.cmpTolerance(other, tolerance);
     }
 
-    public static int compareTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).cmp_tolerance(other, tolerance);
+    public static int compareTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.cmpTolerance(other, tolerance);
     }
 
-    public static bool eqTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).eq_tolerance(other, tolerance);
+    public static bool eqTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.eqTolerance(other, tolerance);
     }
 
-    public static bool equalsTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).eq_tolerance(other, tolerance);
+    public static bool equalsTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.eqTolerance(other, tolerance);
     }
 
-    public static bool neqTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).neq_tolerance(other, tolerance);
+    public static bool neqTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.neqTolerance(other, tolerance);
     }
 
-    public static bool notEqualsTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).notEquals_tolerance(other, tolerance);
+    public static bool notEqualsTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.notEqualsTolerance(other, tolerance);
     }
 
-    public static bool ltTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).lt_tolerance(other, tolerance);
+    public static bool ltTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.ltTolerance(other, tolerance);
     }
 
-    public static bool lteTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).lte_tolerance(other, tolerance);
+    public static bool lteTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.lteTolerance(other, tolerance);
     }
 
-    public static bool gtTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).gt_tolerance(other, tolerance);
+    public static bool gtTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.gtTolerance(other, tolerance);
     }
 
-    public static bool gteTolerance(dynamic value, dynamic other, double tolerance) {
-        return D(value).gte_tolerance(other, tolerance);
+    public static bool gteTolerance(BigDouble value, BigDouble other, double tolerance) {
+        return value.gteTolerance(other, tolerance);
     }
 
-    public static BigDouble pLog10(dynamic value) {
-        return D(value).pLog10();
+    public static BigDouble pLog10(BigDouble value) {
+        return value.pLog10();
     }
 
-    public static BigDouble absLog10(dynamic value) {
-        return D(value).absLog10();
+    public static BigDouble absLog10(BigDouble value) {
+        return value.absLog10();
     }
 
-    public static BigDouble log10(dynamic value) {
-        return D(value).log10();
+    public static BigDouble log10(BigDouble value) {
+        return value.log10();
     }
 
-    public static BigDouble log(dynamic value, dynamic @base) {
-        return D(value).log(@base);
+    public static BigDouble log(BigDouble value, BigDouble @base) {
+        return value.log(@base);
     }
 
-    public static BigDouble log2(dynamic value) {
-        return D(value).log2();
+    public static BigDouble log2(BigDouble value) {
+        return value.log2();
     }
 
-    public static BigDouble ln(dynamic value) {
-        return D(value).ln();
+    public static BigDouble ln(BigDouble value) {
+        return value.ln();
     }
 
-    public static BigDouble logarithm(dynamic value, dynamic @base) {
-        return D(value).logarithm(@base);
+    public static BigDouble logarithm(BigDouble value, BigDouble @base) {
+        return value.logarithm(@base);
     }
 
-    public static BigDouble pow(dynamic value, dynamic other) {
-        return D(value).pow(other);
+    public static BigDouble pow(BigDouble value, BigDouble other) {
+        return value.pow(other);
     }
 
-    public static BigDouble pow10(dynamic value) {
-        return D(value).pow10();
+    public static BigDouble pow10(BigDouble value) {
+        return value.pow10();
     }
 
-    public static BigDouble root(dynamic value, dynamic other) {
-        return D(value).root(other);
+    public static BigDouble root(BigDouble value, BigDouble other) {
+        return value.root(other);
     }
 
-    public static BigDouble factorial(dynamic value) {
-        return D(value).factorial();
+    public static BigDouble factorial(BigDouble value) {
+        return value.factorial();
     }
 
-    public static BigDouble gamma(dynamic value) {
-        return D(value).gamma();
+    public static BigDouble gamma(BigDouble value) {
+        return value.gamma();
     }
 
-    public static BigDouble lngamma(dynamic value) {
-        return D(value).lngamma();
+    public static BigDouble lngamma(BigDouble value) {
+        return value.lngamma();
     }
 
-    public static BigDouble exp(dynamic value) {
-        return D(value).exp();
+    public static BigDouble exp(BigDouble value) {
+        return value.exp();
     }
 
-    public static BigDouble sqr(dynamic value) {
-        return D(value).sqr();
+    public static BigDouble sqr(BigDouble value) {
+        return value.sqr();
     }
 
-    public static BigDouble sqrt(dynamic value) {
-        return D(value).sqrt();
+    public static BigDouble sqrt(BigDouble value) {
+        return value.sqrt();
     }
 
-    public static BigDouble cube(dynamic value) {
-        return D(value).cube();
+    public static BigDouble cube(BigDouble value) {
+        return value.cube();
     }
 
-    public static BigDouble cbrt(dynamic value) {
-        return D(value).cbrt();
+    public static BigDouble cbrt(BigDouble value) {
+        return value.cbrt();
     }
 
-    public static BigDouble tetrate(dynamic value, double height = 2, dynamic? payload = null) {
+    public static BigDouble tetrate(BigDouble value, double height = 2, BigDouble? payload = null) {
         payload ??= FC_NN(1, 0, 1);
 
-        return D(value).tetrate(height, payload);
+        return value.tetrate(height, payload.Value);
     }
 
-    public static BigDouble iteratedexp(dynamic value, double height = 2, dynamic? payload = null) {
+    public static BigDouble iteratedexp(BigDouble value, double height = 2, BigDouble? payload = null) {
         payload ??= FC_NN(1, 0, 1);
 
-        return D(value).iteratedexp(height, payload);
+        return value.iteratedexp(height, payload);
     }
 
-    public static BigDouble iteratedlog(dynamic value, dynamic? @base = null, double times = 1) {
+    public static BigDouble iteratedlog(BigDouble value, BigDouble? @base = null, double times = 1) {
         if (@base == null) {
             @base = 10;
         }
 
-        return D(value).iteratedlog(@base, times);
+        return value.iteratedlog(@base, times);
     }
 
-    public static BigDouble layeradd10(dynamic value, dynamic diff) {
-        return D(value).layeradd10(diff);
+    public static BigDouble layeradd10(BigDouble value, BigDouble diff) {
+        return value.layeradd10(diff);
     }
 
-    public static BigDouble layeradd(dynamic value, double diff, double @base = 10) {
-        return D(value).layeradd(diff, @base);
+    public static BigDouble layeradd(BigDouble value, double diff, double @base = 10) {
+        return value.layeradd(diff, @base);
     }
 
-    public static BigDouble slog(dynamic value, double @base = 10) {
-        return D(value).slog(@base);
+    public static BigDouble slog(BigDouble value, double @base = 10) {
+        return value.slog(@base);
     }
 
-    public static BigDouble lambertw(dynamic value) {
-        return D(value).lambertw();
+    public static BigDouble lambertw(BigDouble value) {
+        return value.lambertw();
     }
 
-    public static BigDouble ssqrt(dynamic value) {
-        return D(value).ssqrt();
+    public static BigDouble ssqrt(BigDouble value) {
+        return value.ssqrt();
     }
 
-    public static BigDouble pentate(dynamic value, double height = 2, dynamic? payload = null) {
+    public static BigDouble pentate(BigDouble value, double height = 2, BigDouble? payload = null) {
         payload ??= FC_NN(1, 0, 1);
 
-        return D(value).pentate(height, payload);
+        return value.pentate(height, payload);
     }
 
     /**
@@ -895,14 +886,14 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * Adapted from Trimps source code.
    */
     public static BigDouble affordGeometricSeries(
-        dynamic resourcesAvailable,
-        dynamic priceStart,
-        dynamic priceRatio,
-        dynamic currentOwned) {
+        BigDouble resourcesAvailable,
+        BigDouble priceStart,
+        BigDouble priceRatio,
+        BigDouble currentOwned) {
         return affordGeometricSeries_core(
-            D(resourcesAvailable),
-            D(priceStart),
-            D(priceRatio),
+            resourcesAvailable,
+            priceStart,
+            priceRatio,
             currentOwned
         );
     }
@@ -912,10 +903,10 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * the initial price is priceStart and it multiplies by priceRatio each purchase?
    */
     public static BigDouble sumGeometricSeries(
-        dynamic numItems,
-        dynamic priceStart,
-        dynamic priceRatio,
-        dynamic currentOwned) {
+        BigDouble numItems,
+        BigDouble priceStart,
+        BigDouble priceRatio,
+        BigDouble currentOwned) {
         return sumGeometricSeries_core(numItems, D(priceStart), D(priceRatio), currentOwned);
     }
 
@@ -925,16 +916,11 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * how much of it can you buy?
    */
     public static BigDouble affordArithmeticSeries(
-        dynamic resourcesAvailable,
-        dynamic priceStart,
-        dynamic priceAdd,
-        dynamic currentOwned) {
-        return affordArithmeticSeries_core(
-            D(resourcesAvailable),
-            D(priceStart),
-            D(priceAdd),
-            D(currentOwned)
-        );
+        BigDouble resourcesAvailable,
+        BigDouble priceStart,
+        BigDouble priceAdd,
+        BigDouble currentOwned) {
+        return affordArithmeticSeries_core(resourcesAvailable, priceStart, priceAdd, currentOwned);
     }
 
     /**
@@ -943,11 +929,11 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * Adapted from http://www.mathwords.com/a/arithmetic_series.htm
    */
     public static BigDouble sumArithmeticSeries(
-        dynamic numItems,
-        dynamic priceStart,
-        dynamic priceAdd,
-        dynamic currentOwned) {
-        return sumArithmeticSeries_core(D(numItems), D(priceStart), D(priceAdd), D(currentOwned));
+        BigDouble numItems,
+        BigDouble priceStart,
+        BigDouble priceAdd,
+        BigDouble currentOwned) {
+        return sumArithmeticSeries_core(numItems, priceStart, priceAdd, currentOwned);
     }
 
     /**
@@ -957,9 +943,9 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * http://cookieclicker.wikia.com/wiki/Frozen_Cookies_(JavaScript_Add-on)#Efficiency.3F_What.27s_that.3F
    */
     public static BigDouble efficiencyOfPurchase(
-        dynamic cost,
-        dynamic currentRpS,
-        dynamic deltaRpS) {
+        BigDouble cost,
+        BigDouble currentRpS,
+        BigDouble deltaRpS) {
         return efficiencyOfPurchase_core(D(cost), D(currentRpS), D(deltaRpS));
     }
 
@@ -1000,7 +986,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         BigDouble resourcesAvailable,
         BigDouble priceStart,
         BigDouble priceRatio,
-        dynamic currentOwned) {
+        BigDouble currentOwned) {
         var actualStart = priceStart.mul(priceRatio.pow(currentOwned));
         return floor(
             resourcesAvailable
@@ -1013,10 +999,10 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     }
 
     private static BigDouble sumGeometricSeries_core(
-        dynamic numItems,
+        BigDouble numItems,
         BigDouble priceStart,
         BigDouble priceRatio,
-        dynamic currentOwned) {
+        BigDouble currentOwned) {
         return priceStart
             .mul(priceRatio.pow(currentOwned))
             .mul(sub(1, priceRatio.pow(numItems)))
@@ -1658,29 +1644,28 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return this;
     }
 
-    public BigDouble add(dynamic value) {
-        BigDouble dec = D(value);
+    public BigDouble add(BigDouble value) {
 
         //inf/nan check
         if (!double.IsFinite(layer)) {
             return this;
         }
 
-        if (!double.IsFinite(dec.layer)) {
-            return dec;
+        if (!double.IsFinite(value.layer)) {
+            return value;
         }
 
         //Special case - if one of the numbers is 0, return the other number.
         if (sign == 0) {
-            return dec;
+            return value;
         }
 
-        if (dec.sign == 0) {
+        if (value.sign == 0) {
             return this;
         }
 
         //Special case - Adding a number to its negation produces 0, no matter how large.
-        if (sign == -dec.sign && layer == dec.layer && mag == dec.mag) {
+        if (sign == -value.sign && layer == value.layer && mag == value.mag) {
             return FC_NN(0, 0, 0);
         }
 
@@ -1688,16 +1673,16 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         BigDouble b;
 
         //Special case: If one of the numbers is layer 2 or higher, just take the bigger number.
-        if (layer >= 2 || dec.layer >= 2) {
-            return this.maxabs(dec);
+        if (layer >= 2 || value.layer >= 2) {
+            return this.maxabs(value);
         }
 
-        if (cmpabs(this, dec) > 0) {
+        if (cmpabs(this, value) > 0) {
             a = this;
-            b = dec;
+            b = value;
         }
         else {
-            a = dec;
+            a = value;
             b = this;
         }
 
@@ -1743,46 +1728,43 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         magdiff = Math.Pow(10, a.mag - b.mag);
         mantissa = b.sign + a.sign * magdiff;
         return FC(Math.Sign(mantissa), 1, b.mag + Math.Log10(Math.Abs(mantissa)));
-
-        throw new ArgumentException("Bad arguments to add: " + this + ", " + value);
     }
 
-    public BigDouble plus(dynamic value) {
+    public BigDouble plus(BigDouble value) {
         return add(value);
     }
 
-    public BigDouble sub(dynamic value) {
-        return this.add(D(value).neg());
+    public BigDouble sub(BigDouble value) {
+        return add(value.neg());
     }
 
-    public BigDouble subtract(dynamic value) {
-        return this.sub(value);
+    public BigDouble subtract(BigDouble value) {
+        return sub(value);
     }
 
-    public BigDouble minus(dynamic value) {
-        return this.sub(value);
+    public BigDouble minus(BigDouble value) {
+        return sub(value);
     }
 
-    public BigDouble mul(dynamic value) {
-        BigDouble dec = D(value);
+    public BigDouble mul(BigDouble value) {
 
         //inf/nan check
         if (!double.IsFinite(layer)) {
             return this;
         }
 
-        if (!double.IsFinite(dec.layer)) {
-            return dec;
+        if (!double.IsFinite(value.layer)) {
+            return value;
         }
 
         //Special case - if one of the numbers is 0, return 0.
-        if (sign == 0 || dec.sign == 0) {
+        if (sign == 0 || value.sign == 0) {
             return FC_NN(0, 0, 0);
         }
 
         //Special case - Multiplying a number by its own reciprocal yields +/- 1, no matter how large.
-        if (layer == dec.layer && mag == -dec.mag) {
-            return FC_NN(sign * dec.sign, 0, 1);
+        if (layer == value.layer && mag == -value.mag) {
+            return FC_NN(sign * value.sign, 0, 1);
         }
 
         BigDouble a;
@@ -1790,19 +1772,19 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
         //Which number is bigger in terms of its multiplicative distance from 1?
         if (
-            layer > dec.layer ||
-            (layer == dec.layer && Math.Abs(mag) > Math.Abs(dec.mag))
+            layer > value.layer ||
+            (layer == value.layer && Math.Abs(mag) > Math.Abs(value.mag))
         ) {
             a = this;
-            b = dec;
+            b = value;
         }
         else {
-            a = dec;
+            a = value;
             b = this;
         }
 
         if (a.layer == 0 && b.layer == 0) {
-            return dec.replaceFromDouble(a.sign * b.sign * a.mag * b.mag);
+            return value.replaceFromDouble(a.sign * b.sign * a.mag * b.mag);
         }
 
         //Special case: If one of the numbers is layer 3 or higher or one of the numbers is 2+ layers bigger than the other, just take the bigger number.
@@ -1832,44 +1814,43 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             return FC(a.sign * b.sign, newmag.layer + 1, newmag.sign * newmag.mag);
         }
 
-        throw new ArgumentException("Bad arguments to mul: " + this + ", " + value);
+        throw new ArgumentException("Bad arguments to mul: " + ToString() + ", " + value.ToString());
     }
 
-    public BigDouble multiply(dynamic value) {
+    public BigDouble multiply(BigDouble value) {
         return mul(value);
     }
 
-    public BigDouble times(dynamic value) {
+    public BigDouble times(BigDouble value) {
         return mul(value);
     }
 
-    public BigDouble div(dynamic value) {
-        BigDouble dec = D(value);
+    public BigDouble div(BigDouble value) {
+        BigDouble dec = value;
         return mul(dec.recip());
     }
 
-    public BigDouble divide(dynamic value) {
-        return this.div(value);
+    public BigDouble divide(BigDouble value) {
+        return div(value);
     }
 
-    public BigDouble divideBy(dynamic value) {
-        return this.div(value);
+    public BigDouble divideBy(BigDouble value) {
+        return div(value);
     }
 
-    public BigDouble dividedBy(dynamic value) {
-        return this.div(value);
+    public BigDouble dividedBy(BigDouble value) {
+        return div(value);
     }
 
     public BigDouble recip() {
         if (mag == 0) {
             return dNaN;
         }
-        else if (layer == 0) {
+
+        if (layer == 0) {
             return FC(sign, 0, 1 / mag);
         }
-        else {
-            return FC(sign, layer, -mag);
-        }
+        return FC(sign, layer, -mag);
     }
 
     public BigDouble reciprocal() {
@@ -1883,23 +1864,21 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     /**
    * -1 for less than value, 0 for equals value, 1 for greater than value
    */
-    public int cmp(dynamic value) {
-        BigDouble dec = D(value);
-        if (sign > dec.sign) {
+    public int cmp(BigDouble value) {
+        if (sign > value.sign) {
             return 1;
         }
 
-        if (sign < dec.sign) {
+        if (sign < value.sign) {
             return -1;
         }
 
-        return sign * this.cmpabs(value);
+        return (int)sign * cmpabs(value);
     }
 
-    public int cmpabs(dynamic value) {
-        BigDouble dec = D(value);
+    public int cmpabs(BigDouble value) {
         var layera = mag > 0 ? layer : -layer;
-        var layerb = dec.mag > 0 ? dec.layer : -dec.layer;
+        var layerb = value.mag > 0 ? value.layer : -value.layer;
         if (layera > layerb) {
             return 1;
         }
@@ -1908,19 +1887,19 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             return -1;
         }
 
-        if (mag > dec.mag) {
+        if (mag > value.mag) {
             return 1;
         }
 
-        if (mag < dec.mag) {
+        if (mag < value.mag) {
             return -1;
         }
 
         return 0;
     }
 
-    public int compare(dynamic value) {
-        return this.cmp(value);
+    public int compare(BigDouble value) {
+        return cmp(value);
     }
 
     public bool isNan() {
@@ -1931,78 +1910,72 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return isFinite(sign) && isFinite(layer) && isFinite(mag);
     }
 
-    public bool eq(dynamic value) {
-        BigDouble dec = D(value);
-        return sign == dec.sign && layer == dec.layer && mag == dec.mag;
+    public bool eq(BigDouble value) {
+        return sign == value.sign && layer == value.layer && mag == value.mag;
     }
 
-    public bool equals(dynamic value) {
-        return this.eq(value);
+    public bool equals(BigDouble value) {
+        return eq(value);
     }
 
-    public bool neq(dynamic value) {
-        return !this.eq(value);
+    public bool neq(BigDouble value) {
+        return !eq(value);
     }
 
-    public bool notEquals(dynamic value) {
-        return this.neq(value);
+    public bool notEquals(BigDouble value) {
+        return neq(value);
     }
 
-    public bool lt(dynamic value) {
-        return this.cmp(value) == -1;
+    public bool lt(BigDouble value) {
+        return cmp(value) == -1;
     }
 
-    public bool lte(dynamic value) {
-        return !this.gt(value);
+    public bool lte(BigDouble value) {
+        return !gt(value);
     }
 
-    public bool gt(dynamic value) {
-        return this.cmp(value) == 1;
+    public bool gt(BigDouble value) {
+        return cmp(value) == 1;
     }
 
-    public bool gte(dynamic value) {
-        return !this.lt(value);
+    public bool gte(BigDouble value) {
+        return !lt(value);
     }
 
-    public BigDouble max(dynamic value) {
-        BigDouble dec = D(value);
-        return lt(dec) ? dec : this;
+    public BigDouble max(BigDouble value) {
+        return lt(value) ? value : this;
     }
 
-    public BigDouble min(dynamic value) {
-        BigDouble dec = D(value);
-        return gt(dec) ? dec : this;
+    public BigDouble min(BigDouble value) {
+        return gt(value) ? value : this;
     }
 
-    public BigDouble maxabs(dynamic value) {
-        BigDouble dec = D(value);
-        return cmpabs(dec) < 0 ? dec : this;
+    public BigDouble maxabs(BigDouble value) {
+        return cmpabs(value) < 0 ? value : this;
     }
 
-    public BigDouble minabs(dynamic value) {
-        BigDouble dec = D(value);
-        return cmpabs(dec) > 0 ? dec : this;
+    public BigDouble minabs(BigDouble value) {
+        return cmpabs(value) > 0 ? value : this;
     }
 
-    public BigDouble clamp(dynamic min, dynamic max) {
+    public BigDouble clamp(BigDouble min, BigDouble max) {
         return this.max(min).min(max);
     }
 
-    public BigDouble clampMin(dynamic min) {
-        return this.max(min);
+    public BigDouble clampMin(BigDouble min) {
+        return max(min);
     }
 
-    public BigDouble clampMax(dynamic max) {
-        return this.min(max);
+    public BigDouble clampMax(BigDouble max) {
+        return min(max);
     }
 
-    public int cmpTolerance(dynamic value, double tolerance) {
-        BigDouble dec = D(value);
-        return this.eqTolerance(dec, tolerance) ? 0 : this.cmp(dec);
+    public int cmpTolerance(BigDouble value, double tolerance) {
+        return eqTolerance(value, tolerance) ? 0 : cmp(value);
     }
 
-    public int compareTolerance(dynamic value, double tolerance) {
-        return this.cmpTolerance(value, tolerance);
+    public int compareTolerance(BigDouble value, double tolerance) {
+        return cmpTolerance(value, tolerance);
     }
 
     /**
@@ -2010,65 +1983,61 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * For example, if you put in 1e-9, then any number closer to the
    * larger number than (larger number)*1e-9 will be considered equal.
    */
-    public bool eqTolerance(dynamic value, double tolerance) {
-        BigDouble dec = D(value); // https://stackoverflow.com/a/33024979
+    public bool eqTolerance(BigDouble value, double tolerance) { 
+        // https://stackoverflow.com/a/33024979
         if (tolerance == null) {
             tolerance = 1e-7;
         }
 
         //Numbers that are too far away are never close.
-        if (sign != dec.sign) {
+        if (sign != value.sign) {
             return false;
         }
 
-        if (Math.Abs(layer - dec.layer) > 1) {
+        if (Math.Abs(layer - value.layer) > 1) {
             return false;
         }
 
         // return abs(a-b) <= tolerance * max(abs(a), abs(b))
         var magA = mag;
-        var magB = dec.mag;
-        if (layer > dec.layer) {
+        var magB = value.mag;
+        if (layer > value.layer) {
             magB = f_magLog10(magB);
         }
 
-        if (layer < dec.layer) {
+        if (layer < value.layer) {
             magA = f_magLog10(magA);
         }
 
         return Math.Abs(magA - magB) <= tolerance * Math.Max(Math.Abs(magA), Math.Abs(magB));
     }
 
-    public bool equalsTolerance(dynamic value, double tolerance) {
-        return this.eqTolerance(value, tolerance);
+    public bool equalsTolerance(BigDouble value, double tolerance) {
+        return eqTolerance(value, tolerance);
     }
 
-    public bool neqTolerance(dynamic value, double tolerance) {
-        return !this.eqTolerance(value, tolerance);
+    public bool neqTolerance(BigDouble value, double tolerance) {
+        return !eqTolerance(value, tolerance);
     }
 
-    public bool notEqualsTolerance(dynamic value, double tolerance) {
-        return this.neqTolerance(value, tolerance);
+    public bool notEqualsTolerance(BigDouble value, double tolerance) {
+        return neqTolerance(value, tolerance);
     }
 
-    public bool ltTolerance(dynamic value, double tolerance) {
-        BigDouble dec = D(value);
-        return !eqTolerance(dec, tolerance) && lt(dec);
+    public bool ltTolerance(BigDouble value, double tolerance) {
+        return !eqTolerance(value, tolerance) && lt(value);
     }
 
-    public bool lteTolerance(dynamic value, double tolerance) {
-        BigDouble dec = D(value);
-        return eqTolerance(dec, tolerance) || lt(dec);
+    public bool lteTolerance(BigDouble value, double tolerance) {
+        return eqTolerance(value, tolerance) || lt(value);
     }
 
-    public bool gtTolerance(dynamic value, double tolerance) {
-        BigDouble dec = D(value);
-        return !eqTolerance(dec, tolerance) && gt(dec);
+    public bool gtTolerance(BigDouble value, double tolerance) {
+        return !eqTolerance(value, tolerance) && gt(value);
     }
 
-    public bool gteTolerance(dynamic value, double tolerance) {
-        BigDouble dec = D(value);
-        return eqTolerance(dec, tolerance) || gt(dec);
+    public bool gteTolerance(BigDouble value, double tolerance) {
+        return eqTolerance(value, tolerance) || gt(value);
     }
 
     public BigDouble pLog10() {
@@ -2099,8 +2068,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return FC(sign, 0, Math.Log10(mag));
     }
 
-    public BigDouble log(dynamic @base) {
-        BigDouble b = D(@base);
+    public BigDouble log(BigDouble b) {
         if (sign <= 0) {
             return dNaN;
         }
@@ -2117,7 +2085,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             return FC(this.sign, 0, Math.Log(this.mag) / Math.Log(b.mag));
         }
 
-        return div(this.log10(), b.log10());
+        return div(log10(), b.log10());
     }
 
     public BigDouble log2() {
@@ -2154,14 +2122,13 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         }
     }
 
-    public BigDouble logarithm(dynamic b) {
+    public BigDouble logarithm(BigDouble b) {
         return log(b);
     }
 
-    public BigDouble pow(dynamic value) {
-        BigDouble dec = D(value);
+    public BigDouble pow(BigDouble value) {
         var a = this;
-        var b = dec;
+        var b = value;
 
         //special case: if a is 0, then return 0 (UNLESS b is 0, then return 1)
         if (a.sign == 0) {
@@ -2189,7 +2156,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             if (Math.Abs(b.toDouble() % 2) % 2 == 1) {
                 return result.neg();
             }
-            else if (Math.Abs(b.toDouble() % 2) % 2 == 0) {
+            if (Math.Abs(b.toDouble() % 2) % 2 == 0) {
                 return result;
             }
 
@@ -2241,12 +2208,12 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return dOne;
     }
 
-    public BigDouble powBase(dynamic value) {
-        return D(value).pow(this);
+    public BigDouble powBase(BigDouble value) {
+        return value.pow(this);
     }
 
-    public BigDouble root(dynamic value) {
-        BigDouble dec = D(value);
+    public BigDouble root(BigDouble value) {
+        BigDouble dec = value;
         return pow(dec.recip());
     }
 
@@ -2316,7 +2283,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     }
 
     public BigDouble lngamma() {
-        return this.gamma().ln();
+        return gamma().ln();
     }
 
     public BigDouble exp() {
@@ -2337,7 +2304,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     }
 
     public BigDouble sqr() {
-        return this.pow(2);
+        return pow(2);
     }
 
     public BigDouble sqrt() {
@@ -2366,17 +2333,19 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     //Tetration/tetrate: The result of exponentiating 'this' to 'this' 'height' times in a row.  https://en.wikipedia.org/wiki/Tetration
     //If payload != 1, then this is 'iterated exponentiation', the result of exping (payload) to base (this) (height) times. https://andydude.github.io/tetration/archives/tetration2/ident.html
     //Works with negative and positive real heights.
-    public BigDouble tetrate(double height = 2, dynamic payload = null) {
+    public BigDouble tetrate(double height = 2, BigDouble? payload = null) {
         payload ??= FC_NN(1, 0, 1);
+        // shut up compiler
+        BigDouble p = payload.Value;
 
         //x^^1 == x
         if (height == 1) {
-            return pow(this, payload);
+            return pow(this, p);
         }
 
         //x^^0 == 1
         if (height == 0) {
-            return new BigDouble(payload);
+            return new BigDouble(p);
         }
 
         //1^^x == 1
@@ -2386,7 +2355,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
         //-1^^x == -1
         if (eq(-1)) {
-            return pow(this, payload);
+            return pow(this, p);
         }
 
         if (double.IsPositiveInfinity(height)) {
@@ -2424,10 +2393,9 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         }
 
         if (height < 0) {
-            return iteratedlog(payload, this, -height);
+            return iteratedlog(p, this, -height);
         }
-
-        payload = D(payload);
+        
         var oldheight = height;
         height = Math.Truncate(height);
         var fracheight = oldheight - height;
@@ -2436,91 +2404,91 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             //similar to 0^^n, flip-flops between two values, converging slowly (or if it's below 0.06598803584531253708, never. so once again, the fractional part at the end will be a linear approximation (TODO: again pending knowledge of how to approximate better, although tbh I think it should in reality just be NaN)
             height = Math.Min(10000, height);
             for (var i = 0; i < height; ++i) {
-                var old_payload = payload;
-                payload = this.pow(payload);
+                var old_payload = p;
+                p = pow(p);
                 //stop early if we converge
-                if (old_payload.eq(payload)) {
-                    return payload;
+                if (old_payload.eq(p)) {
+                    return p;
                 }
             }
 
             if (fracheight != 0) {
-                var next_payload = this.pow(payload);
-                return payload.mul(1 - fracheight).add(next_payload.mul(fracheight));
+                var next_payload = this.pow(p);
+                return p.mul(1 - fracheight).add(next_payload.mul(fracheight));
             }
 
-            return payload;
+            return p;
         }
         //TODO: base < 0, but it's hard for me to reason about (probably all non-integer heights are NaN automatically?)
 
         if (fracheight != 0) {
-            if (payload.eq(dOne)) {
+            if (p.eq(dOne)) {
                 //TODO: for bases above 10, revert to old linear approximation until I can think of something better
                 if (gt(10)) {
-                    payload = pow(fracheight);
+                    p = pow(fracheight);
                 }
                 else {
-                    payload = fromDouble(tetrateCritical(toDouble(), fracheight));
+                    p = fromDouble(tetrateCritical(toDouble(), fracheight));
                     //TODO: until the critical section grid can handle numbers below 2, scale them to the base
                     //TODO: maybe once the critical section grid has very large bases, this math can be appropriate for them too? I'll think about it
-                    if (this.lt(2)) {
-                        payload = payload.sub(1).mul(minus(1)).plus(1);
+                    if (lt(2)) {
+                        p = p.sub(1).mul(minus(1)).plus(1);
                     }
                 }
             }
             else {
-                payload = eq(10) ? payload.layeradd10(fracheight) : payload.layeradd(fracheight, this);
+                p = eq(10) ? p.layeradd10(fracheight) : p.layeradd(fracheight, this);
             }
         }
 
         for (var i = 0; i < height; ++i) {
-            payload = this.pow(payload);
+            p = pow(p);
             //bail if we're NaN
-            if (!isFinite(payload.layer) || !isFinite(payload.mag)) {
-                return payload.normalize();
+            if (!isFinite(p.layer) || !isFinite(p.mag)) {
+                return p.normalize();
             }
 
             //shortcut
-            if (payload.layer - this.layer > 3) {
-                return FC_NN(payload.sign, payload.layer + (height - i - 1), payload.mag);
+            if (p.layer - layer > 3) {
+                return FC_NN(p.sign, p.layer + (height - i - 1), p.mag);
             }
 
             //give up after 10000 iterations if nothing is happening
             if (i > 10000) {
-                return payload;
+                return p;
             }
         }
 
-        return payload;
+        return p;
     }
 
     //iteratedexp/iterated exponentiation: - all cases handled in tetrate, so just call it
-    public BigDouble iteratedexp(double height = 2, dynamic? payload = null) {
+    public BigDouble iteratedexp(double height = 2, BigDouble? payload = null) {
         payload ??= FC_NN(1, 0, 1);
-        return this.tetrate(height, payload);
+        return tetrate(height, payload);
     }
 
     //iterated log/repeated log: The result of applying log(base) 'times' times in a row. Approximately equal to subtracting (times) from the number's slog representation. Equivalent to tetrating to a negative height.
     //Works with negative and positive real heights.
-    public BigDouble iteratedlog(dynamic? @base = null, double times = 1) {
+    public BigDouble iteratedlog(BigDouble? @base = null, double times = 1) {
         @base ??= 10;
+        BigDouble b = @base.Value;
         if (times < 0) {
-            return tetrate(@base, -times, this);
+            return tetrate(b, -times, this);
         }
-
-        @base = D(@base);
+        
         var result = fromBigDouble(this);
         var fulltimes = times;
         times = Math.Truncate(times);
         var fraction = fulltimes - times;
-        if (result.layer - @base.layer > 3) {
-            var layerloss = Math.Min(times, result.layer - @base.layer - 3);
+        if (result.layer - b.layer > 3) {
+            var layerloss = Math.Min(times, result.layer - b.layer - 3);
             times -= layerloss;
             result.layer -= layerloss;
         }
 
         for (var i = 0; i < times; ++i) {
-            result = result.log(@base);
+            result = result.log(b);
             //bail if we're NaN
             if (!isFinite(result.layer) || !isFinite(result.mag)) {
                 return result.normalize();
@@ -2534,11 +2502,11 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
         //handle fractional part
         if (fraction > 0 && fraction < 1) {
-            if (@base.eq(10)) {
+            if (b.eq(10)) {
                 result = result.layeradd10(-fraction);
             }
             else {
-                result = result.layeradd(-fraction, @base);
+                result = result.layeradd(-fraction, b);
             }
         }
 
@@ -2548,14 +2516,15 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     //Super-logarithm, one of tetration's inverses, tells you what size power tower you'd have to tetrate base to to get number. By definition, will never be higher than 1.8e308 in break_eternity.js, since a power tower 1.8e308 numbers tall is the largest representable number.
     // https://en.wikipedia.org/wiki/Super-logarithm
     // NEW: Accept a number of iterations, and use binary search to, after making an initial guess, hone in on the true value, assuming tetration as the ground truth.
-    public BigDouble slog(dynamic? @base = null, int iterations = 100) {
+    public BigDouble slog(BigDouble? @base = null, int iterations = 100) {
         @base ??= 10;
+        BigDouble b = @base.Value;
         var step_size = 0.001;
         var has_changed_directions_once = false;
         var previously_rose = false;
-        var result = this.slogTnternal(@base).toNumber();
+        var result = slogTnternal(b).toDouble();
         for (var i = 1; i < iterations; ++i) {
-            var new_dec = new BigDouble(@base).tetrate(result);
+            var new_dec = new BigDouble(b).tetrate(result);
             var currently_rose = new_dec.gt(this);
             if (i > 1) {
                 if (previously_rose != currently_rose) {
@@ -2581,9 +2550,9 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return fromDouble(result);
     }
 
-    public BigDouble slogTnternal(dynamic? @base) {
+    public BigDouble slogTnternal(BigDouble? @base) {
         @base ??= 10;
-        BigDouble b = D(@base);
+        BigDouble b = @base.Value;
 
         //special cases:
         //slog base 0 or lower is NaN
@@ -2598,11 +2567,11 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
         //need to handle these small, wobbling bases specially
         if (b.lt(dOne)) {
-            if (this.eq(dOne)) {
+            if (eq(dOne)) {
                 return dZero;
             }
 
-            if (this.eq(dZero)) {
+            if (eq(dZero)) {
                 return dNegOne;
             }
 
@@ -2613,7 +2582,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         }
 
         //slog_n(0) is -1
-        if (this.mag < 0 || this.eq(dZero)) {
+        if (mag < 0 || eq(dZero)) {
             return dNegOne;
         }
 
@@ -2709,16 +2678,15 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         if (lower <= 0 || upper <= 0) {
             return lower * (1 - frac) + upper * frac;
         }
-        else {
-            return Math.Pow(@base,
-                (Math.Log(lower) / Math.Log(@base)) * (1 - frac) + (Math.Log(upper) / Math.Log(@base)) * frac);
-        }
+        
+        return Math.Pow(@base,
+            (Math.Log(lower) / Math.Log(@base)) * (1 - frac) + (Math.Log(upper) / Math.Log(@base)) * frac);
     }
 
     //Function for adding/removing layers from a dec, even fractional layers (e.g. its slog10 representation).
     //Moved this over to use the same critical section as tetrate/slog.
-    public BigDouble layeradd10(dynamic diff) {
-        diff = fromValueNoAlloc(diff).toNumber();
+    public BigDouble layeradd10(BigDouble diff) {
+        diff = fromValueNoAlloc(diff).toDouble();
         var result = fromBigDouble(this);
         if (diff >= 1) {
             //bug fix: if result is very smol (mag < 0, layer > 0) turn it into 0 first
@@ -2733,13 +2701,13 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
                 result.mag = -result.mag;
             }
 
-            var layeradd = Math.Truncate(diff);
+            var layeradd = Math.Truncate(diff.toDouble());
             diff -= layeradd;
             result.layer += layeradd;
         }
 
         if (diff <= -1) {
-            var layeradd = Math.Truncate(diff);
+            var layeradd = Math.Truncate(diff.toDouble());
             diff -= layeradd;
             result.layer += layeradd;
             if (result.layer < 0) {
@@ -2785,15 +2753,15 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
         //layeradd10: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 10 and iterated log base 10. Also equivalent to adding a fractional amount to the number's layer in its break_eternity.js representation.
         if (diff != 0) {
-            return result.layeradd(diff, 10); //safe, only calls positive height 1 payload tetration, slog and log
+            return result.layeradd(diff.toDouble(), 10); //safe, only calls positive height 1 payload tetration, slog and log
         }
 
         return result;
     }
 
     //layeradd: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 'base' and iterated log base 'base'.
-    public BigDouble layeradd(double diff, dynamic @base) {
-        var slogthis = this.slog(@base).toNumber();
+    public BigDouble layeradd(double diff, BigDouble @base) {
+        var slogthis = slog(@base).toDouble();
         var slogdest = slogthis + diff;
         if (slogdest >= 0) {
             return tetrate(@base, slogdest);
@@ -2850,12 +2818,12 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
     //Pentation/pentate: The result of tetrating 'height' times in a row. An absurdly strong operator - dec.pentate(2, 4.28) and dec.pentate(10, 2.37) are already too huge for break_eternity.js!
     // https://en.wikipedia.org/wiki/Pentation
-    public BigDouble pentate(double height = 2, dynamic? payload = null) {
+    public BigDouble pentate(double height = 2, BigDouble? payload = null) {
         if (payload is null) {
             payload = FC_NN(1, 0, 1);
         }
 
-        BigDouble p = D(payload);
+        BigDouble p = payload.Value;
         var oldheight = height;
         height = Math.Truncate(height);
         var fracheight = oldheight - height;
@@ -2868,7 +2836,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             }
             else {
                 if (eq(10)) {
-                    p = payload.p(fracheight);
+                    p = p.layeradd10(fracheight);
                 }
                 else {
                     p = p.layeradd(fracheight, this);
@@ -2996,8 +2964,8 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     /**
    * Joke function from Realm Grinder
    */
-    public BigDouble ascensionPenalty(dynamic ascensions) {
-        return ascensions == 0 ? this : (BigDouble)root(pow(10, ascensions));
+    public BigDouble ascensionPenalty(BigDouble ascensions) {
+        return ascensions == 0 ? this : root(pow(10, ascensions));
     }
 
     /**
@@ -3007,24 +2975,24 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return add(9);
     }
 
-    public bool lessThanOrEqualTo(dynamic other) {
+    public bool lessThanOrEqualTo(BigDouble other) {
         return cmp(other) < 1;
     }
 
-    public bool lessThan(dynamic other) {
+    public bool lessThan(BigDouble other) {
         return cmp(other) < 0;
     }
 
-    public bool greaterThanOrEqualTo(dynamic other) {
+    public bool greaterThanOrEqualTo(BigDouble other) {
         return cmp(other) > -1;
     }
 
-    public bool greaterThan(dynamic other) {
+    public bool greaterThan(BigDouble other) {
         return cmp(other) > 0;
     }
 
     public int CompareTo(object? obj) {
-        return compare(obj);
+        return 0;
     }
 
     public int CompareTo(BigDouble other) {
@@ -3034,92 +3002,85 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     public bool Equals(BigDouble other) {
         return equals(other);
     }
-    
+
     /// <summary>
     /// We need this lookup table because Math.pow(10, exponent) when exponent's absolute value
     /// is large is slightly inaccurate. you can fix it with the power of math... or just make
     /// a lookup table. Faster AND simpler.
     /// </summary>
-    private static class PowersOf10
-    {
+    private static class PowersOf10 {
         private static double[] powers { get; } = new double[DOUBLE_EXP_MAX - DOUBLE_EXP_MIN];
 
         private const long indexOf0 = -DOUBLE_EXP_MIN - 1;
 
-        static PowersOf10()
-        {
+        static PowersOf10() {
             var index = 0;
-            for (var i = 0; i < powers.Length; i++)
-            {
+            for (var i = 0; i < powers.Length; i++) {
                 powers[index++] = double.Parse("1e" + (i - indexOf0), CultureInfo.InvariantCulture);
             }
         }
 
-        public static double lookup(long power)
-        {
+        public static double lookup(long power) {
             return powers[indexOf0 + power];
         }
     }
 
-    public override bool Equals(object obj)
-    {
+    public override bool Equals(object obj) {
         return obj is BigDouble bigDouble && Equals(bigDouble);
     }
 
-    public static bool operator ==(BigDouble left, BigDouble right)
-    {
+    public static bool operator ==(BigDouble left, BigDouble right) {
         return left.Equals(right);
     }
 
-    public static bool operator !=(BigDouble left, BigDouble right)
-    {
+    public static bool operator !=(BigDouble left, BigDouble right) {
         return !(left == right);
     }
-    
-    public static bool operator <(BigDouble left, BigDouble right)
-    {
+
+    public static bool operator <(BigDouble left, BigDouble right) {
         return left.lessThan(right);
     }
-    
-    public static bool operator <=(BigDouble left, BigDouble right)
-    {
+
+    public static bool operator <=(BigDouble left, BigDouble right) {
         return left.lessThanOrEqualTo(right);
     }
-    
-    public static bool operator >(BigDouble left, BigDouble right)
-    {
+
+    public static bool operator >(BigDouble left, BigDouble right) {
         return left.greaterThan(right);
     }
-    
-    public static bool operator >=(BigDouble left, BigDouble right)
-    {
+
+    public static bool operator >=(BigDouble left, BigDouble right) {
         return left.greaterThanOrEqualTo(right);
     }
-    
+
     public static BigDouble operator +(BigDouble left, BigDouble right) {
         return left.add(right);
     }
-    
-    public static BigDouble operator -(BigDouble left, BigDouble right)
-    {
+
+    public static BigDouble operator -(BigDouble left, BigDouble right) {
         return left.sub(right);
     }
-    
-    public static BigDouble operator -(BigDouble value)
-    {
+
+    public static BigDouble operator -(BigDouble value) {
         return value.neg();
     }
-    
-    public static BigDouble operator *(BigDouble left, BigDouble right)
-    {
+
+    public static BigDouble operator *(BigDouble left, BigDouble right) {
         return left.mul(right);
     }
-    
-    public static BigDouble operator /(BigDouble left, BigDouble right)
-    {
+
+    public static BigDouble operator /(BigDouble left, BigDouble right) {
         return left.div(right);
     }
-    
+
+    public static implicit operator BigDouble(double value) {
+        return fromDouble(value);
+    }
+
+    public static implicit operator BigDouble(string value) {
+        return fromString(value);
+    }
+
     public override int GetHashCode() {
         return HashCode.Combine(sign, mag, layer);
     }
