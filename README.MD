@@ -1,5 +1,5 @@
 ﻿# BreakEternity.cs
-A low-quality C# port of [break_eternity.js](https://github.com/Patashu/break_eternity.js) - a solution for incremental gameswhich want to represent numbers as large as 10^^1e308 and as 'small' as 10^-(10^^1e308). This is a sequel to break_infinity.js, the other library which maxes out at 1e1e308 ( https://github.com/Patashu/break_infinity.js ) and its C# port ( https://github.com/Razenpok/BreakInfinity.cs ).  
+A low-quality C# port of [break_eternity.js](https://github.com/Patashu/break_eternity.js) - a solution for incremental games which want to represent numbers as large as 10^^1e308 and as 'small' as 10^-(10^^1e308). This is a sequel to break_infinity.js, the other library which maxes out at 1e1e308 ( https://github.com/Patashu/break_infinity.js ) and its C# port ( https://github.com/Razenpok/BreakInfinity.cs ).  
 Despite handling a wider range of numbers, execution time is comparable (within 2x/0.5x as fast as break_infinity.js in testing) and it has the same interface, so it can be used as a drop-in replacement for break_infinity.js and decimal.js.which want to deal with very large numbers (bigger in magnitude than 1e308, up to as much as 1e(9e15) ) and want to prioritize speed over accuracy.
 
 ## Installation

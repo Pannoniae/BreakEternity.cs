@@ -2047,7 +2047,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         return !this.eqTolerance(value, tolerance);
     }
 
-    public bool notEquals_tolerance(dynamic value, double tolerance) {
+    public bool notEqualsTolerance(dynamic value, double tolerance) {
         return this.neqTolerance(value, tolerance);
     }
 
