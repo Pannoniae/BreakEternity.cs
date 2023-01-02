@@ -4,7 +4,7 @@ namespace BreakEternity;
 
 using System;
 using System.Globalization;
-using Random = System.Random;
+using Random = Random;
 
 // I'm not sure if there's a "Yes, this is Unity" define symbol
 // (#if UNITY doesn't seem to work). If you happen to know one - please create
@@ -15,13 +15,14 @@ using UnityEngine;
 #if UNITY_2017_1_OR_NEWER
 [Serializable]
 #endif
-public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEquatable<BigDouble> {
+public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDouble> {
+
     private const long MAX_SIGNIFICANT_DIGITS = 17; //Maximum number of digits of precision to assume in Number
 
     private const double
         EXP_LIMIT = 9e15; //If we're ABOVE this value, increase a layer. (9e15 is close to the largest integer that can fit in a Number.)
 
-    private const double LAYER_DOWN = Math.Log10(9e15);
+    private static readonly double LAYER_DOWN = Math.Log10(9e15);
 
     //At layer 0, smaller non-zero numbers than this become layer 1 numbers with negative mag. After that the pattern continues as normal.
     private const double FIRST_NEG_LAYER = 1 / 9e15;
@@ -34,17 +35,32 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
 
     private const long MAX_ES_IN_A_ROW = 5; //For default toString behaviour, when to swap from eee... to (e^n) syntax.
 
-    // The default size of the LRU cache used to cache Decimal.fromString.
+    // The default size of the LRU cache used to cache dec.fromString.
     private const long DEFAULT_FROM_STRING_CACHE_SIZE = (1 << 10) - 1;
 
     private const bool IGNORE_COMMAS = true;
-    private const bool COMMAS_ARE_DECIMAL_POINTS = false;
+    private const bool COMMAS_ARE_dec_POINTS = false;
+    
+    public static double powerOf10(int power) {
+        // We need this lookup table because Math.pow(10, exponent)
+        // when exponent's absolute value is large is slightly inaccurate.
+        // You can fix it with the power of math... or just make a lookup table.
+        // Faster AND simpler
+        List<double> powersOf10 = new List<double>();
+
+        for (var i = DOUBLE_EXP_MIN + 1; i <= DOUBLE_EXP_MAX; i++) {
+            powersOf10.Add(double.Parse("1e" + i));
+        }
+
+        var indexOf0InPowersOf10 = 323;
+        return powersOf10[power + indexOf0InPowersOf10];
+    }
 
     //tetration/slog to real height stuff
 //background info and tables of values for critical functions taken here: https://github.com/Patashu/break_eternity.js/issues/22
-    readonly double[] critical_headers = { 2, Math.E, 3, 4, 5, 6, 7, 8, 9, 10 };
+    private static readonly double[] criticalHeaders = { 2, Math.E, 3, 4, 5, 6, 7, 8, 9, 10 };
 
-    readonly double[,] criticalTetrValues = {
+    private static readonly double[,] criticalTetrValues = {
         {
             // Base 2 (using http://myweb.astate.edu/wpaulsen/tetcalc/tetcalc.html )
             1, 1.0891180521811202527, 1.1789767925673958433, 1.2701455431742086633, 1.3632090180450091941,
@@ -108,7 +124,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         }
     };
 
-    readonly double[,] critical_slog_values = {
+    private static readonly double[,] criticalSlogValues = {
         {
             // Base 2
             -1, -0.9194161097107025, -0.8335625019330468, -0.7425599821143978, -0.6466611521029437,
@@ -170,12 +186,12 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         }
     };
 
-    public static double decimalPlaces(double value, double places) {
+    public static double decPlaces(double value, double places) {
         var len = places + 1;
         var numDigits = Math.Ceiling(Math.Log10(Math.Abs(value)));
         var rounded = Math.Round(value * Math.Pow(10, len - numDigits)) * Math.Pow(10, numDigits - len);
         return double.Parse(rounded.ToString("N" + Math.Max(len - numDigits, 0)));
-    };
+    }
 
     public static double f_magLog10(double n) => Math.Sign(n) * Math.Log10(Math.Abs(n));
 
@@ -200,7 +216,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         }
 
         n -= 1;
-        var l = 0.9189385332046727; //0.5*Math.log(2*Math.PI)
+        var l = 0.9189385332046727; //0.5*Math.Log(2*Math.PI)
         l += (n + 0.5) * Math.Log(n);
         l -= n;
         var n2 = n * n;
@@ -266,62 +282,61 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             z.ToString(CultureInfo.InvariantCulture)
         }");
         //return Number.NaN;
-    };
+    }
 
 //from https://github.com/scipy/scipy/blob/8dba340293fe20e62e173bdf2c10ae208286692f/scipy/special/lambertw.pxd
 // The evaluation can become inaccurate very close to the branch point
 // at ``-1/e``. In some corner cases, `lambertw` might currently
 // fail to converge, or can end up on the wrong branch.
-    public double d_lambertw(BigDouble z, double tol = 1e-10) {
-        var w;
-        var ew, wewz, wn;
+    public BigDouble d_lambertw(BigDouble z, double tol = 1e-10) {
+        BigDouble w;
+        BigDouble ew, wewz, wn;
 
         if (!double.IsFinite(z.mag)) {
             return z;
         }
 
-        if (z.eq(BigDouble.dZero)) {
+        if (z.eq(dZero)) {
             return z;
         }
 
-        if (z.eq(BigDouble.dOne)) {
+        if (z.eq(dOne)) {
             //Split out this case because the asymptotic series blows up
-            return BigDouble.fromDouble(OMEGA);
+            return fromDouble(OMEGA);
         }
 
         //Get an initial guess for Halley's method
-        w = BigDouble.ln(z);
+        w = ln(z);
 
         //Halley's method; see 5.9 in [1]
 
-        for (let i = 0; i < 100; ++i) {
+        for (var i = 0; i < 100; ++i) {
             ew = w.neg().exp();
             wewz = w.sub(z.mul(ew));
-            wn = w.sub(wewz.div(w.add(1).sub(w.add(2).mul(wewz).div(Decimal.mul(2, w).add(2)))));
-            if (BigDouble.abs(wn.sub(w)).lt(BigDouble.abs(wn).mul(tol))) {
+            wn = w.sub(wewz.div(w.add(1).sub(w.add(2).mul(wewz).div(mul(2, w).add(2)))));
+            if (abs(wn.sub(w)).lt(abs(wn).mul(tol))) {
                 return wn;
             }
-            else {
-                w = wn;
-            }
+
+            w = wn;
         }
 
-        throw new Exception($"Iteration failed to converge: ${
+        throw new ArithmeticException($"Iteration failed to converge: ${
             z.ToString()
         }");
-        //return Decimal.dNaN;
+        //return dec.dNaN;
     }
 
     private static BigDouble D(BigDouble value) {
-        return fromValue_noAlloc(value);
+        return fromValueNoAlloc(value);
     }
 
     private static BigDouble D(double value) {
-        return fromValue_noAlloc(value);
+        return fromValueNoAlloc(value);
     }
 
     private static BigDouble D(string value) {
-        return fromValue_noAlloc(value);
+        return fromValueNoAlloc(value);
     }
 
     private static BigDouble FC(double sign, double layer, double mag) {
@@ -329,15 +344,15 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
     }
 
     private static BigDouble FC_NN(double sign, double layer, double mag) {
-        return fromComponents_noNormalize(sign, layer, mag);
+        return fromComponentsNoNormalize(sign, layer, mag);
     }
 
     private static BigDouble ME(double mantissa, double exponent) {
-        return BigDouble.fromMantissaExponent(mantissa, exponent);
+        return fromMantissaExponent(mantissa, exponent);
     }
 
     private static BigDouble ME_NN(double mantissa, double exponent) {
-        return BigDouble.fromMantissaExponent_noNormalize(mantissa, exponent);
+        return fromMantissaExponentNoNormalize(mantissa, exponent);
     }
 
     public static readonly BigDouble dZero = FC_NN(0, 0, 0);
@@ -353,9 +368,9 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
 
     private static readonly LRUCache<string, BigDouble> fromStringCache = new(DEFAULT_FROM_STRING_CACHE_SIZE);
 
-    public int sign = 0;
+    public double sign = 0;
     public double mag = 0;
-    public int layer = 0;
+    public double layer = 0;
 
     public BigDouble(BigDouble value) {
         replaceFromBigDouble(value);
@@ -371,41 +386,41 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
 
     public double m {
         get {
-            if (this.sign == 0) {
+            if (sign == 0) {
                 return 0;
             }
             else if (layer == 0) {
-                var exp = Math.Floor(Math.Log10(this.mag));
+                var exp = Math.Floor(Math.Log10(mag));
                 //handle special case 5e-324
                 double man;
-                if (this.mag == 5e-324) {
+                if (mag == 5e-324) {
                     man = 5;
                 }
                 else {
-                    man = this.mag / powerOf10(exp);
+                    man = mag / powerOf10((int)exp);
                 }
 
-                return this.sign * man;
+                return sign * man;
             }
-            else if (this.layer == 1) {
-                var residue = this.mag - Math.Floor(this.mag);
-                return this.sign * Math.Pow(10, residue);
+            else if (layer == 1) {
+                var residue = mag - Math.Floor(mag);
+                return sign * Math.Pow(10, residue);
             }
             else {
                 //mantissa stops being relevant past 1e9e15 / ee15.954
-                return this.sign;
+                return sign;
             }
         }
         set {
-            if (this.layer <= 2) {
-                this.fromMantissaExponent(value, this.e);
+            if (layer <= 2) {
+                replaceFromMantissaExponent(value, e);
             }
             else {
                 //don't even pretend mantissa is meaningful
-                this.sign = Math.Sign(value);
-                if (this.sign == 0) {
-                    this.layer = 0;
-                    this.exponent = 0;
+                sign = Math.Sign(value);
+                if (sign == 0) {
+                    layer = 0;
+                    exponent = 0;
                 }
             }
         }
@@ -418,13 +433,13 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             }
 
             return layer switch {
-                0 => Math.Floor(Math.Log10(this.mag)),
-                1 => Math.Floor(this.mag),
-                2 => Math.Floor(Math.Sign(this.mag) * Math.Pow(10, Math.Abs(this.mag))),
+                0 => Math.Floor(Math.Log10(mag)),
+                1 => Math.Floor(mag),
+                2 => Math.Floor(Math.Sign(mag) * Math.Pow(10, Math.Abs(mag))),
                 _ => mag * double.PositiveInfinity
             };
         }
-        set => this.fromMantissaExponent(this.m, value);
+        set => replaceFromMantissaExponent(m, value);
     }
 
     public double s {
@@ -455,7 +470,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         return new BigDouble().replaceFromComponents(sign, layer, mag);
     }
 
-    public static BigDouble fromComponents_noNormalize(double sign, double layer, double mag) {
+    public static BigDouble fromComponentsNoNormalize(double sign, double layer, double mag) {
         return new BigDouble().replaceFromComponentsNoNormalize(sign, layer, mag);
     }
 
@@ -463,7 +478,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         return new BigDouble().replaceFromMantissaExponent(mantissa, exponent);
     }
 
-    public static BigDouble fromMantissaExponent_noNormalize(double mantissa, double exponent) {
+    public static BigDouble fromMantissaExponentNoNormalize(double mantissa, double exponent) {
         return new BigDouble().replaceFromMantissaExponentNoNormalize(mantissa, exponent);
     }
 
@@ -492,23 +507,23 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
     }
 
     /**
-   * Converts a DecimalSource to a Decimal, without constructing a new Decimal
-   * if the provided value is already a Decimal.
+   * Converts a decSource to a dec, without constructing a new dec
+   * if the provided value is already a dec.
    *
    * As the return value could be the provided value itself, this function
-   * returns a read-only Decimal to prevent accidental mutations of the value.
-   * Use `new Decimal(value)` to explicitly create a writeable copy if mutation
+   * returns a read-only dec to prevent accidental mutations of the value.
+   * Use `new dec(value)` to explicitly create a writeable copy if mutation
    * is required.
    */
-    private static BigDouble fromValue_noAlloc(BigDouble value) {
+    private static BigDouble fromValueNoAlloc(BigDouble value) {
         return value;
     }
 
-    private static BigDouble fromValue_noAlloc(double value) {
+    private static BigDouble fromValueNoAlloc(double value) {
         return fromDouble(value);
     }
 
-    private static BigDouble fromValue_noAlloc(string value) {
+    private static BigDouble fromValueNoAlloc(string value) {
         BigDouble? cached = fromStringCache.get(value);
         if (cached != null) {
             return cached.Value;
@@ -804,17 +819,13 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
     }
 
     public static BigDouble tetrate(dynamic value, double height = 2, dynamic? payload = null) {
-        if (payload == null) {
-            payload = FC_NN(1, 0, 1);
-        }
+        payload ??= FC_NN(1, 0, 1);
 
         return D(value).tetrate(height, payload);
     }
 
     public static BigDouble iteratedexp(dynamic value, double height = 2, dynamic? payload = null) {
-        if (payload == null) {
-            payload = FC_NN(1, 0, 1);
-        }
+        payload ??= FC_NN(1, 0, 1);
 
         return D(value).iteratedexp(height, payload);
     }
@@ -848,9 +859,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
     }
 
     public static BigDouble pentate(dynamic value, double height = 2, dynamic? payload = null) {
-        if (payload == null) {
-            payload = FC_NN(1, 0, 1);
-        }
+        payload ??= FC_NN(1, 0, 1);
 
         return D(value).pentate(height, payload);
     }
@@ -986,8 +995,8 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         dynamic currentOwned) {
         return priceStart
             .mul(priceRatio.pow(currentOwned))
-            .mul(Decimal.sub(1, priceRatio.pow(numItems)))
-            .div(Decimal.sub(1, priceRatio));
+            .mul(sub(1, priceRatio.pow(numItems)))
+            .div(sub(1, priceRatio));
     }
 
     private static BigDouble affordArithmeticSeries_core(
@@ -1038,7 +1047,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         Any 0 is totally zero (0, 0, 0).
         Anything layer 0 has mag 0 OR mag > 1/9e15 and < 9e15.
         Anything layer 1 or higher has abs(mag) >= 15.954 and < 9e15.
-        We will assume in calculations that all Decimals are either erroneous or satisfy these criteria. (Otherwise: Garbage in, garbage out.)
+        We will assume in calculations that all decs are either erroneous or satisfy these criteria. (Otherwise: Garbage in, garbage out.)
         */
         if (sign == 0 || (mag == 0 && layer == 0)) {
             sign = 0;
@@ -1047,7 +1056,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             return this;
         }
 
-        if (layer == 0 && this.mag < 0) {
+        if (layer == 0 && mag < 0) {
             //extract sign from negative mag at layer 0
             mag = -mag;
             sign = -sign;
@@ -1087,7 +1096,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
                 mag = -mag;
                 sign = -sign;
             }
-            else if (this.mag == 0) {
+            else if (mag == 0) {
                 //excessive rounding can give us all zeroes
                 sign = 0;
             }
@@ -1123,7 +1132,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
     }
 
     public BigDouble replaceFromMantissaExponentNoNormalize(double mantissa, double exponent) {
-        //The idea of 'normalizing' a break_infinity.js style Decimal doesn't really apply. So just do the same thing.
+        //The idea of 'normalizing' a break_infinity.js style dec doesn't really apply. So just do the same thing.
         replaceFromMantissaExponent(mantissa, exponent);
         return this;
     }
@@ -1153,7 +1162,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         if (IGNORE_COMMAS) {
             value = value.Replace(",", "");
         }
-        else if (COMMAS_ARE_DECIMAL_POINTS) {
+        else if (COMMAS_ARE_dec_POINTS) {
             value = value.Replace(",", ".");
         }
 
@@ -1174,7 +1183,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             }
 
             if (isFinite(@base) && isFinite(height)) {
-                var result = pentate(base, height, payload);
+                var result = pentate(@base, height, payload);
                 sign = result.sign;
                 layer = result.layer;
                 mag = result.mag;
@@ -1200,8 +1209,8 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
                 }
             }
 
-            if (isFinite(base) && isFinite(height)) {
-                var result = tetrate(base, height, payload);
+            if (isFinite(@base) && isFinite(height)) {
+                var result = tetrate(@base, height, payload);
                 sign = result.sign;
                 layer = result.layer;
                 mag = result.mag;
@@ -1219,8 +1228,8 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         if (powparts.Length == 2) {
             @base = double.Parse(powparts[0]);
             exponent = double.Parse(powparts[1]);
-            if (isFinite(base) && isFinite(exponent)) {
-                var result = pow(base, exponent);
+            if (isFinite(@base) && isFinite(exponent)) {
+                var result = pow(@base, exponent);
                 sign = result.sign;
                 layer = result.layer;
                 mag = result.mag;
@@ -1408,7 +1417,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             }
         }
 
-        this.normalize();
+        normalize();
         if (fromStringCache.maxSize >= 1) {
             fromStringCache.set(originalValue, fromBigDouble(this));
         }
@@ -1430,7 +1439,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
 
 
     public double toDouble() {
-        if (!double.IsFinite(this.layer)) {
+        if (!double.IsFinite(layer)) {
             return double.NaN;
         }
 
@@ -1441,7 +1450,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         };
     }
 
-    public double mantissaWithDecimalPlaces(double places) {
+    public double mantissaWithdecPlaces(double places) {
         // https://stackoverflow.com/a/37425022
         if (double.IsNaN(m)) {
             return double.NaN;
@@ -1451,10 +1460,10 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             return 0;
         }
 
-        return decimalPlaces(this.m, places);
+        return decPlaces(m, places);
     }
 
-    public double magnitudeWithDecimalPlaces(double places) {
+    public double magnitudeWithdecPlaces(double places) {
         // https://stackoverflow.com/a/37425022
         if (double.IsNaN(mag)) {
             return double.NaN;
@@ -1464,7 +1473,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             return 0;
         }
 
-        return decimalPlaces(this.mag, places);
+        return decPlaces(mag, places);
     }
 
     public override string ToString() {
@@ -1478,7 +1487,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
 
         if (layer == 0) {
             if ((mag < 1e21 && mag > 1e-7) || mag == 0) {
-                return (sign * mag).ToString();
+                return (sign * mag).ToString(CultureInfo.InvariantCulture);
             }
 
             return m + "e" + e;
@@ -1487,9 +1496,10 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         if (layer == 1) {
             return m + "e" + e;
         }
+
         //layer 2+
         if (layer <= MAX_ES_IN_A_ROW) {
-            return (sign == -1 ? "-" : "") + "e".repeat(layer) + mag;
+            return (sign == -1 ? "-" : "") + "e".repeat((int)layer) + mag;
         }
 
         return (sign == -1 ? "-" : "") + "(e^" + layer + ")" + mag;
@@ -1500,7 +1510,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             return (sign * mag).ToString("E" + places);
         }
 
-        return this.toStringWithDecimalPlaces(places);
+        return toStringWithdecPlaces(places);
     }
 
     public string toFixed(double places) {
@@ -1508,7 +1518,7 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
             return (sign * mag).ToString("N" + places);
         }
 
-        return this.toStringWithDecimalPlaces(places);
+        return toStringWithdecPlaces(places);
     }
 
     public string toPrecision(double places) {
@@ -1531,1379 +1541,1539 @@ public struct BigDouble : IFormattable, IComparable, IComparable<BigDouble>, IEq
         return ToString();
     }
 
-    public string toStringWithDecimalPlaces(double places) {
+    public string toStringWithdecPlaces(double places) {
         if (layer == 0) {
             if ((mag < 1e21 && mag > 1e-7) || mag == 0) {
                 return (sign * mag).ToString("N" + places);
             }
 
-            return decimalPlaces(this.m, places) + "e" + decimalPlaces(this.e, places);
+            return decPlaces(m, places) + "e" + decPlaces(e, places);
         }
 
         if (layer == 1) {
-            return decimalPlaces(this.m, places) + "e" + decimalPlaces(this.e, places);
+            return decPlaces(m, places) + "e" + decPlaces(e, places);
         }
 
         //layer 2+
         if (layer <= MAX_ES_IN_A_ROW) {
-            return (sign == -1 ? "-" : "") + "e".repeat((int)layer) + decimalPlaces(mag, places);
+            return (sign == -1 ? "-" : "") + "e".repeat((int)layer) + decPlaces(mag, places);
         }
 
-        return (sign == -1 ? "-" : "") + "(e^" + layer + ")" + decimalPlaces(mag, places);
+        return (sign == -1 ? "-" : "") + "(e^" + layer + ")" + decPlaces(mag, places);
     }
-    
+
     public BigDouble abs() {
-    return FC_NN(this.sign === 0 ? 0 : 1, this.layer, this.mag);
-  }
-
-  public BigDouble neg(){
-    return FC_NN(-this.sign, this.layer, this.mag);
-  }
-
-  public BigDouble negate(){
-    return this.neg();
-  }
-
-  public BigDouble negated(){
-    return this.neg();
-  }
-
-   public signum () {
-       return this.sign;
-     }
-
-  public BigDouble sgn() {
-    return this.sign;
-  }
-
-  public BigDouble round() {
-    if (mag < 0) {
-      return dZero;
-    }
-    if (layer == 0) {
-      return FC(sign, 0, Math.Round(mag));
-    }
-    return this;
-  }
-
-  public BigDouble floor() {
-    if (mag < 0) {
-      return dZero;
-    }
-    if (layer == 0) {
-      return FC(sign, 0, Math.Floor(mag));
-    }
-    return this;
-  }
-
-  public BigDouble ceil() {
-    if (mag < 0) {
-      return dZero;
-    }
-    if (layer == 0) {
-      return FC(sign, 0, Math.Ceiling(mag));
-    }
-    return this;
-  }
-
-  public BigDouble trunc() {
-    if (mag < 0) {
-      return dZero;
-    }
-    if (layer == 0) {
-      return FC(this.sign, 0, Math.Truncate(mag));
-    }
-    return this;
-  }
-
-  public BigDouble add(dynamic value) {
-    BigDouble dec = D(value);
-
-    //inf/nan check
-    if (!double.IsFinite(layer)) {
-      return this;
-    }
-    if (!double.IsFinite(dec.layer)) {
-      return decimal;
+        return FC_NN(sign == 0 ? 0 : 1, layer, mag);
     }
 
-    //Special case - if one of the numbers is 0, return the other number.
-    if (sign == 0) {
-      return dec;
-    }
-    if (dec.sign == 0) {
-      return this;
+    public BigDouble neg() {
+        return FC_NN(-sign, layer, mag);
     }
 
-    //Special case - Adding a number to its negation produces 0, no matter how large.
-    if (sign == -dec.sign && layer == dec.layer && mag == dec.mag) {
-      return FC_NN(0, 0, 0);
+    public BigDouble negate() {
+        return neg();
     }
 
-    BigDouble a;
-    BigDouble b;
-
-    //Special case: If one of the numbers is layer 2 or higher, just take the bigger number.
-    if (layer >= 2 || dec.layer >= 2) {
-      return this.maxabs(dec);
+    public BigDouble negated() {
+        return neg();
     }
 
-    if (cmpabs(this, dec) > 0) {
-      a = this;
-      b = dec;
-    } else {
-      a = dec;
-      b = this;
+    public BigDouble signum() {
+        return new BigDouble(sign);
     }
 
-    if (a.layer == 0 && b.layer == 0) {
-      return fromDouble(a.sign * a.mag + b.sign * b.mag);
+    public BigDouble sgn() {
+        return new BigDouble(sign);
     }
 
-    var layera = a.layer * Math.Sign(a.mag);
-    var layerb = b.layer * Math.Sign(b.mag);
+    public BigDouble round() {
+        if (mag < 0) {
+            return dZero;
+        }
 
-    //If one of the numbers is 2+ layers higher than the other, just take the bigger number.
-    if (layera - layerb >= 2) {
-      return a;
+        if (layer == 0) {
+            return FC(sign, 0, Math.Round(mag));
+        }
+
+        return this;
     }
 
-    if (layera == 0 && layerb == -1) {
-      if (Math.Abs(b.mag - Math.Log10(a.mag)) > MAX_SIGNIFICANT_DIGITS) {
-        return a;
-      } else {
-        const magdiff = Math.pow(10, Math.log10(a.mag) - b.mag);
-        const mantissa = b.sign + a.sign * magdiff;
-        return FC(Math.sign(mantissa), 1, b.mag + Math.log10(Math.abs(mantissa)));
-      }
+    public BigDouble floor() {
+        if (mag < 0) {
+            return dZero;
+        }
+
+        if (layer == 0) {
+            return FC(sign, 0, Math.Floor(mag));
+        }
+
+        return this;
     }
 
-    if (layera === 1 && layerb === 0) {
-      if (Math.abs(a.mag - Math.log10(b.mag)) > MAX_SIGNIFICANT_DIGITS) {
-        return a;
-      } else {
-        const magdiff = Math.pow(10, a.mag - Math.log10(b.mag));
-        const mantissa = b.sign + a.sign * magdiff;
-        return FC(Math.sign(mantissa), 1, Math.log10(b.mag) + Math.log10(Math.abs(mantissa)));
-      }
+    public BigDouble ceil() {
+        if (mag < 0) {
+            return dZero;
+        }
+
+        if (layer == 0) {
+            return FC(sign, 0, Math.Ceiling(mag));
+        }
+
+        return this;
     }
 
-    if (Math.abs(a.mag - b.mag) > MAX_SIGNIFICANT_DIGITS) {
-      return a;
-    } else {
-      const magdiff = Math.pow(10, a.mag - b.mag);
-      const mantissa = b.sign + a.sign * magdiff;
-      return FC(Math.sign(mantissa), 1, b.mag + Math.log10(Math.abs(mantissa)));
+    public BigDouble trunc() {
+        if (mag < 0) {
+            return dZero;
+        }
+
+        if (layer == 0) {
+            return FC(sign, 0, Math.Truncate(mag));
+        }
+
+        return this;
     }
 
-    throw Error("Bad arguments to add: " + this + ", " + value);
-  }
+    public BigDouble add(dynamic value) {
+        BigDouble dec = D(value);
 
-  public plus(value: DecimalSource){
-    return this.add(value);
-  }
+        //inf/nan check
+        if (!double.IsFinite(layer)) {
+            return this;
+        }
 
-  public sub(value: DecimalSource){
-    return this.add(D(value).neg());
-  }
+        if (!double.IsFinite(dec.layer)) {
+            return dec;
+        }
 
-  public subtract(value: DecimalSource){
-    return this.sub(value);
-  }
+        //Special case - if one of the numbers is 0, return the other number.
+        if (sign == 0) {
+            return dec;
+        }
 
-  public minus(value: DecimalSource){
-    return this.sub(value);
-  }
+        if (dec.sign == 0) {
+            return this;
+        }
 
-  public mul(value: DecimalSource){
-    const decimal = D(value);
+        //Special case - Adding a number to its negation produces 0, no matter how large.
+        if (sign == -dec.sign && layer == dec.layer && mag == dec.mag) {
+            return FC_NN(0, 0, 0);
+        }
 
-    //inf/nan check
-    if (!Number.isFinite(this.layer)) {
-      return this;
+        BigDouble a;
+        BigDouble b;
+
+        //Special case: If one of the numbers is layer 2 or higher, just take the bigger number.
+        if (layer >= 2 || dec.layer >= 2) {
+            return this.maxabs(dec);
+        }
+
+        if (cmpabs(this, dec) > 0) {
+            a = this;
+            b = dec;
+        }
+        else {
+            a = dec;
+            b = this;
+        }
+
+        if (a.layer == 0 && b.layer == 0) {
+            return fromDouble(a.sign * a.mag + b.sign * b.mag);
+        }
+
+        var layera = a.layer * Math.Sign(a.mag);
+        var layerb = b.layer * Math.Sign(b.mag);
+
+        //If one of the numbers is 2+ layers higher than the other, just take the bigger number.
+        if (layera - layerb >= 2) {
+            return a;
+        }
+
+        double magdiff;
+        double mantissa;
+        if (layera == 0 && layerb == -1) {
+            if (Math.Abs(b.mag - Math.Log10(a.mag)) > MAX_SIGNIFICANT_DIGITS) {
+                return a;
+            }
+
+            magdiff = Math.Pow(10, Math.Log10(a.mag) - b.mag);
+            mantissa = b.sign + a.sign * magdiff;
+            return FC(Math.Sign(mantissa), 1, b.mag + Math.Log10(Math.Abs(mantissa)));
+        }
+
+        if (layera == 1 && layerb == 0) {
+            if (Math.Abs(a.mag - Math.Log10(b.mag)) > MAX_SIGNIFICANT_DIGITS) {
+                return a;
+            }
+            else {
+                magdiff = Math.Pow(10, a.mag - Math.Log10(b.mag));
+                mantissa = b.sign + a.sign * magdiff;
+                return FC(Math.Sign(mantissa), 1, Math.Log10(b.mag) + Math.Log10(Math.Abs(mantissa)));
+            }
+        }
+
+        if (Math.Abs(a.mag - b.mag) > MAX_SIGNIFICANT_DIGITS) {
+            return a;
+        }
+
+        magdiff = Math.Pow(10, a.mag - b.mag);
+        mantissa = b.sign + a.sign * magdiff;
+        return FC(Math.Sign(mantissa), 1, b.mag + Math.Log10(Math.Abs(mantissa)));
+
+        throw new ArgumentException("Bad arguments to add: " + this + ", " + value);
     }
-    if (!Number.isFinite(decimal.layer)) {
-      return decimal;
+
+    public BigDouble plus(dynamic value) {
+        return add(value);
     }
 
-    //Special case - if one of the numbers is 0, return 0.
-    if (this.sign === 0 || decimal.sign === 0) {
-      return FC_NN(0, 0, 0);
+    public BigDouble sub(dynamic value) {
+        return this.add(D(value).neg());
     }
 
-    //Special case - Multiplying a number by its own reciprocal yields +/- 1, no matter how large.
-    if (this.layer === decimal.layer && this.mag === -decimal.mag) {
-      return FC_NN(this.sign * decimal.sign, 0, 1);
+    public BigDouble subtract(dynamic value) {
+        return this.sub(value);
     }
 
-    let a;
-    let b;
-
-    //Which number is bigger in terms of its multiplicative distance from 1?
-    if (
-      this.layer > decimal.layer ||
-      (this.layer == decimal.layer && Math.abs(this.mag) > Math.abs(decimal.mag))
-    ) {
-      a = this;
-      b = decimal;
-    } else {
-      a = decimal;
-      b = this;
+    public BigDouble minus(dynamic value) {
+        return this.sub(value);
     }
 
-    if (a.layer === 0 && b.layer === 0) {
-      return Decimal.fromNumber(a.sign * b.sign * a.mag * b.mag);
+    public BigDouble mul(dynamic value) {
+        BigDouble dec = D(value);
+
+        //inf/nan check
+        if (!double.IsFinite(layer)) {
+            return this;
+        }
+
+        if (!double.IsFinite(dec.layer)) {
+            return dec;
+        }
+
+        //Special case - if one of the numbers is 0, return 0.
+        if (sign == 0 || dec.sign == 0) {
+            return FC_NN(0, 0, 0);
+        }
+
+        //Special case - Multiplying a number by its own reciprocal yields +/- 1, no matter how large.
+        if (layer == dec.layer && mag == -dec.mag) {
+            return FC_NN(sign * dec.sign, 0, 1);
+        }
+
+        BigDouble a;
+        BigDouble b;
+
+        //Which number is bigger in terms of its multiplicative distance from 1?
+        if (
+            layer > dec.layer ||
+            (layer == dec.layer && Math.Abs(mag) > Math.Abs(dec.mag))
+        ) {
+            a = this;
+            b = dec;
+        }
+        else {
+            a = dec;
+            b = this;
+        }
+
+        if (a.layer == 0 && b.layer == 0) {
+            return dec.replaceFromDouble(a.sign * b.sign * a.mag * b.mag);
+        }
+
+        //Special case: If one of the numbers is layer 3 or higher or one of the numbers is 2+ layers bigger than the other, just take the bigger number.
+        if (a.layer >= 3 || a.layer - b.layer >= 2) {
+            return FC(a.sign * b.sign, a.layer, a.mag);
+        }
+
+        if (a.layer == 1 && b.layer == 0) {
+            return FC(a.sign * b.sign, 1, a.mag + Math.Log10(b.mag));
+        }
+
+        if (a.layer == 1 && b.layer == 1) {
+            return FC(a.sign * b.sign, 1, a.mag + b.mag);
+        }
+
+        if (a.layer == 2 && b.layer == 1) {
+            var newmag = FC(Math.Sign(a.mag), a.layer - 1, Math.Abs(a.mag)).add(
+                FC(Math.Sign(b.mag), b.layer - 1, Math.Abs(b.mag))
+            );
+            return FC(a.sign * b.sign, newmag.layer + 1, newmag.sign * newmag.mag);
+        }
+
+        if (a.layer == 2 && b.layer == 2) {
+            var newmag = FC(Math.Sign(a.mag), a.layer - 1, Math.Abs(a.mag)).add(
+                FC(Math.Sign(b.mag), b.layer - 1, Math.Abs(b.mag))
+            );
+            return FC(a.sign * b.sign, newmag.layer + 1, newmag.sign * newmag.mag);
+        }
+
+        throw new ArgumentException("Bad arguments to mul: " + this + ", " + value);
     }
 
-    //Special case: If one of the numbers is layer 3 or higher or one of the numbers is 2+ layers bigger than the other, just take the bigger number.
-    if (a.layer >= 3 || a.layer - b.layer >= 2) {
-      return FC(a.sign * b.sign, a.layer, a.mag);
+    public BigDouble multiply(dynamic value) {
+        return mul(value);
     }
 
-    if (a.layer === 1 && b.layer === 0) {
-      return FC(a.sign * b.sign, 1, a.mag + Math.log10(b.mag));
+    public BigDouble times(dynamic value) {
+        return mul(value);
     }
 
-    if (a.layer === 1 && b.layer === 1) {
-      return FC(a.sign * b.sign, 1, a.mag + b.mag);
+    public BigDouble div(dynamic value) {
+        BigDouble dec = D(value);
+        return mul(dec.recip());
     }
 
-    if (a.layer === 2 && b.layer === 1) {
-      const newmag = FC(Math.sign(a.mag), a.layer - 1, Math.abs(a.mag)).add(
-        FC(Math.sign(b.mag), b.layer - 1, Math.abs(b.mag))
-      );
-      return FC(a.sign * b.sign, newmag.layer + 1, newmag.sign * newmag.mag);
+    public BigDouble divide(dynamic value) {
+        return this.div(value);
     }
 
-    if (a.layer === 2 && b.layer === 2) {
-      const newmag = FC(Math.sign(a.mag), a.layer - 1, Math.abs(a.mag)).add(
-        FC(Math.sign(b.mag), b.layer - 1, Math.abs(b.mag))
-      );
-      return FC(a.sign * b.sign, newmag.layer + 1, newmag.sign * newmag.mag);
+    public BigDouble divideBy(dynamic value) {
+        return this.div(value);
     }
 
-    throw Error("Bad arguments to mul: " + this + ", " + value);
-  }
-
-  public multiply(value: DecimalSource){
-    return this.mul(value);
-  }
-
-  public times(value: DecimalSource){
-    return this.mul(value);
-  }
-
-  public div(value: DecimalSource){
-    const decimal = D(value);
-    return this.mul(decimal.recip());
-  }
-
-  public divide(value: DecimalSource){
-    return this.div(value);
-  }
-
-  public divideBy(value: DecimalSource){
-    return this.div(value);
-  }
-
-  public dividedBy(value: DecimalSource){
-    return this.div(value);
-  }
-
-  public recip(){
-    if (this.mag === 0) {
-      return Decimal.dNaN;
-    } else if (this.layer === 0) {
-      return FC(this.sign, 0, 1 / this.mag);
-    } else {
-      return FC(this.sign, this.layer, -this.mag);
+    public BigDouble dividedBy(dynamic value) {
+        return this.div(value);
     }
-  }
 
-  public reciprocal(){
-    return this.recip();
-  }
+    public BigDouble recip() {
+        if (mag == 0) {
+            return dNaN;
+        }
+        else if (layer == 0) {
+            return FC(sign, 0, 1 / mag);
+        }
+        else {
+            return FC(sign, layer, -mag);
+        }
+    }
 
-  public reciprocate(){
-    return this.recip();
-  }
+    public BigDouble reciprocal() {
+        return recip();
+    }
 
-  /**
+    public BigDouble reciprocate() {
+        return recip();
+    }
+
+    /**
    * -1 for less than value, 0 for equals value, 1 for greater than value
    */
-  public cmp(value: DecimalSource): CompareResult {
-    const decimal = D(value);
-    if (this.sign > decimal.sign) {
-      return 1;
+    public int cmp(dynamic value) {
+        BigDouble dec = D(value);
+        if (sign > dec.sign) {
+            return 1;
+        }
+
+        if (sign < dec.sign) {
+            return -1;
+        }
+
+        return sign * this.cmpabs(value);
     }
-    if (this.sign < decimal.sign) {
-      return -1;
+
+    public int cmpabs(dynamic value) {
+        BigDouble dec = D(value);
+        var layera = mag > 0 ? layer : -layer;
+        var layerb = dec.mag > 0 ? dec.layer : -dec.layer;
+        if (layera > layerb) {
+            return 1;
+        }
+
+        if (layera < layerb) {
+            return -1;
+        }
+
+        if (mag > dec.mag) {
+            return 1;
+        }
+
+        if (mag < dec.mag) {
+            return -1;
+        }
+
+        return 0;
     }
-    return (this.sign * this.cmpabs(value)) as CompareResult;
-  }
 
-  public cmpabs(value: DecimalSource): CompareResult {
-    const decimal = D(value);
-    const layera = this.mag > 0 ? this.layer : -this.layer;
-    const layerb = decimal.mag > 0 ? decimal.layer : -decimal.layer;
-    if (layera > layerb) {
-      return 1;
+    public int compare(dynamic value) {
+        return this.cmp(value);
     }
-    if (layera < layerb) {
-      return -1;
+
+    public bool isNan() {
+        return isNaN(sign) || isNaN(layer) || isNaN(mag);
     }
-    if (this.mag > decimal.mag) {
-      return 1;
+
+    public bool isFinite() {
+        return isFinite(sign) && isFinite(layer) && isFinite(mag);
     }
-    if (this.mag < decimal.mag) {
-      return -1;
+
+    public bool eq(dynamic value) {
+        BigDouble dec = D(value);
+        return sign == dec.sign && layer == dec.layer && mag == dec.mag;
     }
-    return 0;
-  }
 
-  public compare(value: DecimalSource): CompareResult {
-    return this.cmp(value);
-  }
+    public bool equals(dynamic value) {
+        return this.eq(value);
+    }
 
-  public isNan(): boolean {
-    return isNaN(this.sign) || isNaN(this.layer) || isNaN(this.mag);
-  }
+    public bool neq(dynamic value) {
+        return !this.eq(value);
+    }
 
-  public isFinite(): boolean {
-    return isFinite(this.sign) && isFinite(this.layer) && isFinite(this.mag);
-  }
+    public bool notEquals(dynamic value) {
+        return this.neq(value);
+    }
 
-  public eq(value: DecimalSource): boolean {
-    const decimal = D(value);
-    return this.sign === decimal.sign && this.layer === decimal.layer && this.mag === decimal.mag;
-  }
+    public bool lt(dynamic value) {
+        return this.cmp(value) == -1;
+    }
 
-  public equals(value: DecimalSource): boolean {
-    return this.eq(value);
-  }
+    public bool lte(dynamic value) {
+        return !this.gt(value);
+    }
 
-  public neq(value: DecimalSource): boolean {
-    return !this.eq(value);
-  }
+    public bool gt(dynamic value) {
+        return this.cmp(value) == 1;
+    }
 
-  public notEquals(value: DecimalSource): boolean {
-    return this.neq(value);
-  }
+    public bool gte(dynamic value) {
+        return !this.lt(value);
+    }
 
-  public lt(value: DecimalSource): boolean {
-    return this.cmp(value) === -1;
-  }
+    public BigDouble max(dynamic value) {
+        BigDouble dec = D(value);
+        return lt(dec) ? dec : this;
+    }
 
-  public lte(value: DecimalSource): boolean {
-    return !this.gt(value);
-  }
+    public BigDouble min(dynamic value) {
+        BigDouble dec = D(value);
+        return gt(dec) ? dec : this;
+    }
 
-  public gt(value: DecimalSource): boolean {
-    return this.cmp(value) === 1;
-  }
+    public BigDouble maxabs(dynamic value) {
+        BigDouble dec = D(value);
+        return cmpabs(dec) < 0 ? dec : this;
+    }
 
-  public gte(value: DecimalSource): boolean {
-    return !this.lt(value);
-  }
+    public BigDouble minabs(dynamic value) {
+        BigDouble dec = D(value);
+        return cmpabs(dec) > 0 ? dec : this;
+    }
 
-  public max(value: DecimalSource){
-    const decimal = D(value);
-    return this.lt(decimal) ? decimal : this;
-  }
+    public BigDouble clamp(dynamic min, dynamic max) {
+        return this.max(min).min(max);
+    }
 
-  public min(value: DecimalSource){
-    const decimal = D(value);
-    return this.gt(decimal) ? decimal : this;
-  }
+    public BigDouble clampMin(dynamic min) {
+        return this.max(min);
+    }
 
-  public maxabs(value: DecimalSource){
-    const decimal = D(value);
-    return this.cmpabs(decimal) < 0 ? decimal : this;
-  }
+    public BigDouble clampMax(dynamic max) {
+        return this.min(max);
+    }
 
-  public minabs(value: DecimalSource){
-    const decimal = D(value);
-    return this.cmpabs(decimal) > 0 ? decimal : this;
-  }
+    public int cmpTolerance(dynamic value, double tolerance) {
+        BigDouble dec = D(value);
+        return this.eqTolerance(dec, tolerance) ? 0 : this.cmp(dec);
+    }
 
-  public clamp(min: DecimalSource, max: DecimalSource){
-    return this.max(min).min(max);
-  }
+    public int compareTolerance(dynamic value, double tolerance) {
+        return this.cmpTolerance(value, tolerance);
+    }
 
-  public clampMin(min: DecimalSource){
-    return this.max(min);
-  }
-
-  public clampMax(max: DecimalSource){
-    return this.min(max);
-  }
-
-  public cmp_tolerance(value: DecimalSource, tolerance: number): CompareResult {
-    const decimal = D(value);
-    return this.eq_tolerance(decimal, tolerance) ? 0 : this.cmp(decimal);
-  }
-
-  public compare_tolerance(value: DecimalSource, tolerance: number): CompareResult {
-    return this.cmp_tolerance(value, tolerance);
-  }
-
-  /**
+    /**
    * Tolerance is a relative tolerance, multiplied by the greater of the magnitudes of the two arguments.
    * For example, if you put in 1e-9, then any number closer to the
    * larger number than (larger number)*1e-9 will be considered equal.
    */
-  public eq_tolerance(value: DecimalSource, tolerance: number): boolean {
-    const decimal = D(value); // https://stackoverflow.com/a/33024979
-    if (tolerance == null) {
-      tolerance = 1e-7;
-    }
-    //Numbers that are too far away are never close.
-    if (this.sign !== decimal.sign) {
-      return false;
-    }
-    if (Math.abs(this.layer - decimal.layer) > 1) {
-      return false;
-    }
-    // return abs(a-b) <= tolerance * max(abs(a), abs(b))
-    let magA = this.mag;
-    let magB = decimal.mag;
-    if (this.layer > decimal.layer) {
-      magB = f_maglog10(magB);
-    }
-    if (this.layer < decimal.layer) {
-      magA = f_maglog10(magA);
-    }
-    return Math.abs(magA - magB) <= tolerance * Math.max(Math.abs(magA), Math.abs(magB));
-  }
+    public bool eqTolerance(dynamic value, double tolerance) {
+        BigDouble dec = D(value); // https://stackoverflow.com/a/33024979
+        if (tolerance == null) {
+            tolerance = 1e-7;
+        }
 
-  public equals_tolerance(value: DecimalSource, tolerance: number): boolean {
-    return this.eq_tolerance(value, tolerance);
-  }
+        //Numbers that are too far away are never close.
+        if (sign != dec.sign) {
+            return false;
+        }
 
-  public neq_tolerance(value: DecimalSource, tolerance: number): boolean {
-    return !this.eq_tolerance(value, tolerance);
-  }
+        if (Math.Abs(layer - dec.layer) > 1) {
+            return false;
+        }
 
-  public notEquals_tolerance(value: DecimalSource, tolerance: number): boolean {
-    return this.neq_tolerance(value, tolerance);
-  }
+        // return abs(a-b) <= tolerance * max(abs(a), abs(b))
+        var magA = mag;
+        var magB = dec.mag;
+        if (layer > dec.layer) {
+            magB = f_magLog10(magB);
+        }
 
-  public lt_tolerance(value: DecimalSource, tolerance: number): boolean {
-    const decimal = D(value);
-    return !this.eq_tolerance(decimal, tolerance) && this.lt(decimal);
-  }
+        if (layer < dec.layer) {
+            magA = f_magLog10(magA);
+        }
 
-  public lte_tolerance(value: DecimalSource, tolerance: number): boolean {
-    const decimal = D(value);
-    return this.eq_tolerance(decimal, tolerance) || this.lt(decimal);
-  }
-
-  public gt_tolerance(value: DecimalSource, tolerance: number): boolean {
-    const decimal = D(value);
-    return !this.eq_tolerance(decimal, tolerance) && this.gt(decimal);
-  }
-
-  public gte_tolerance(value: DecimalSource, tolerance: number): boolean {
-    const decimal = D(value);
-    return this.eq_tolerance(decimal, tolerance) || this.gt(decimal);
-  }
-
-  public pLog10(){
-    if (this.lt(Decimal.dZero)) {
-      return Decimal.dZero;
-    }
-    return this.log10();
-  }
-
-  public absLog10(){
-    if (this.sign === 0) {
-      return Decimal.dNaN;
-    } else if (this.layer > 0) {
-      return FC(Math.sign(this.mag), this.layer - 1, Math.abs(this.mag));
-    } else {
-      return FC(1, 0, Math.log10(this.mag));
-    }
-  }
-
-  public log10(){
-    if (this.sign <= 0) {
-      return Decimal.dNaN;
-    } else if (this.layer > 0) {
-      return FC(Math.sign(this.mag), this.layer - 1, Math.abs(this.mag));
-    } else {
-      return FC(this.sign, 0, Math.log10(this.mag));
-    }
-  }
-
-  public log(base: DecimalSource){
-    base = D(base);
-    if (this.sign <= 0) {
-      return Decimal.dNaN;
-    }
-    if (base.sign <= 0) {
-      return Decimal.dNaN;
-    }
-    if (base.sign === 1 && base.layer === 0 && base.mag === 1) {
-      return Decimal.dNaN;
-    } else if (this.layer === 0 && base.layer === 0) {
-      return FC(this.sign, 0, Math.log(this.mag) / Math.log(base.mag));
+        return Math.Abs(magA - magB) <= tolerance * Math.Max(Math.Abs(magA), Math.Abs(magB));
     }
 
-    return Decimal.div(this.log10(), base.log10());
-  }
-
-  public log2(){
-    if (this.sign <= 0) {
-      return Decimal.dNaN;
-    } else if (this.layer === 0) {
-      return FC(this.sign, 0, Math.log2(this.mag));
-    } else if (this.layer === 1) {
-      return FC(Math.sign(this.mag), 0, Math.abs(this.mag) * 3.321928094887362); //log2(10)
-    } else if (this.layer === 2) {
-      return FC(Math.sign(this.mag), 1, Math.abs(this.mag) + 0.5213902276543247); //-log10(log10(2))
-    } else {
-      return FC(Math.sign(this.mag), this.layer - 1, Math.abs(this.mag));
-    }
-  }
-
-  public ln(){
-    if (this.sign <= 0) {
-      return Decimal.dNaN;
-    } else if (this.layer === 0) {
-      return FC(this.sign, 0, Math.log(this.mag));
-    } else if (this.layer === 1) {
-      return FC(Math.sign(this.mag), 0, Math.abs(this.mag) * 2.302585092994046); //ln(10)
-    } else if (this.layer === 2) {
-      return FC(Math.sign(this.mag), 1, Math.abs(this.mag) + 0.36221568869946325); //log10(log10(e))
-    } else {
-      return FC(Math.sign(this.mag), this.layer - 1, Math.abs(this.mag));
-    }
-  }
-
-  public logarithm(base: DecimalSource){
-    return this.log(base);
-  }
-
-  public pow(value: DecimalSource){
-    const decimal = D(value);
-    const a = this;
-    const b = decimal;
-
-    //special case: if a is 0, then return 0 (UNLESS b is 0, then return 1)
-    if (a.sign === 0) {
-      return b.eq(0) ? FC_NN(1, 0, 1) : a;
-    }
-    //special case: if a is 1, then return 1
-    if (a.sign === 1 && a.layer === 0 && a.mag === 1) {
-      return a;
-    }
-    //special case: if b is 0, then return 1
-    if (b.sign === 0) {
-      return FC_NN(1, 0, 1);
-    }
-    //special case: if b is 1, then return a
-    if (b.sign === 1 && b.layer === 0 && b.mag === 1) {
-      return a;
+    public bool equalsTolerance(dynamic value, double tolerance) {
+        return this.eqTolerance(value, tolerance);
     }
 
-    const result = a.absLog10().mul(b).pow10();
+    public bool neqTolerance(dynamic value, double tolerance) {
+        return !this.eqTolerance(value, tolerance);
+    }
 
-    if (this.sign === -1) {
-      if (Math.abs(b.toNumber() % 2) % 2 === 1) {
-        return result.neg();
-      } else if (Math.abs(b.toNumber() % 2) % 2 === 0) {
+    public bool notEquals_tolerance(dynamic value, double tolerance) {
+        return this.neqTolerance(value, tolerance);
+    }
+
+    public bool ltTolerance(dynamic value, double tolerance) {
+        BigDouble dec = D(value);
+        return !eqTolerance(dec, tolerance) && lt(dec);
+    }
+
+    public bool lteTolerance(dynamic value, double tolerance) {
+        BigDouble dec = D(value);
+        return eqTolerance(dec, tolerance) || lt(dec);
+    }
+
+    public bool gtTolerance(dynamic value, double tolerance) {
+        BigDouble dec = D(value);
+        return !eqTolerance(dec, tolerance) && gt(dec);
+    }
+
+    public bool gteTolerance(dynamic value, double tolerance) {
+        BigDouble dec = D(value);
+        return eqTolerance(dec, tolerance) || gt(dec);
+    }
+
+    public BigDouble pLog10() {
+        return lt(dZero) ? dZero : log10();
+    }
+
+    public BigDouble absLog10() {
+        if (sign == 0) {
+            return dNaN;
+        }
+
+        if (layer > 0) {
+            return FC(Math.Sign(mag), layer - 1, Math.Abs(mag));
+        }
+
+        return FC(1, 0, Math.Log10(mag));
+    }
+
+    public BigDouble log10() {
+        if (sign <= 0) {
+            return dNaN;
+        }
+
+        if (layer > 0) {
+            return FC(Math.Sign(mag), layer - 1, Math.Abs(mag));
+        }
+
+        return FC(sign, 0, Math.Log10(mag));
+    }
+
+    public BigDouble log(dynamic @base) {
+        BigDouble b = D(@base);
+        if (sign <= 0) {
+            return dNaN;
+        }
+
+        if (b.sign <= 0) {
+            return dNaN;
+        }
+
+        if (b.sign == 1 && b.layer == 0 && b.mag == 1) {
+            return dNaN;
+        }
+
+        if (layer == 0 && b.layer == 0) {
+            return FC(this.sign, 0, Math.Log(this.mag) / Math.Log(b.mag));
+        }
+
+        return div(this.log10(), b.log10());
+    }
+
+    public BigDouble log2() {
+        if (sign <= 0) {
+            return dNaN;
+        }
+
+        switch (layer) {
+            case 0:
+                return FC(sign, 0, Math.Log2(mag));
+            case 1:
+                return FC(Math.Sign(mag), 0, Math.Abs(mag) * 3.321928094887362); //log2(10)
+            case 2:
+                return FC(Math.Sign(mag), 1, Math.Abs(mag) + 0.5213902276543247); //-log10(log10(2))
+            default:
+                return FC(Math.Sign(mag), layer - 1, Math.Abs(mag));
+        }
+    }
+
+    public BigDouble ln() {
+        if (sign <= 0) {
+            return dNaN;
+        }
+
+        switch (layer) {
+            case 0:
+                return FC(sign, 0, Math.Log(mag));
+            case 1:
+                return FC(Math.Sign(mag), 0, Math.Abs(mag) * 2.302585092994046); //ln(10)
+            case 2:
+                return FC(Math.Sign(mag), 1, Math.Abs(mag) + 0.36221568869946325); //log10(log10(e))
+            default:
+                return FC(Math.Sign(mag), layer - 1, Math.Abs(mag));
+        }
+    }
+
+    public BigDouble logarithm(dynamic b) {
+        return log(b);
+    }
+
+    public BigDouble pow(dynamic value) {
+        BigDouble dec = D(value);
+        var a = this;
+        var b = dec;
+
+        //special case: if a is 0, then return 0 (UNLESS b is 0, then return 1)
+        if (a.sign == 0) {
+            return b.eq(0) ? FC_NN(1, 0, 1) : a;
+        }
+
+        //special case: if a is 1, then return 1
+        if (a.sign == 1 && a.layer == 0 && a.mag == 1) {
+            return a;
+        }
+
+        //special case: if b is 0, then return 1
+        if (b.sign == 0) {
+            return FC_NN(1, 0, 1);
+        }
+
+        //special case: if b is 1, then return a
+        if (b.sign == 1 && b.layer == 0 && b.mag == 1) {
+            return a;
+        }
+
+        var result = a.absLog10().mul(b).pow10();
+
+        if (sign == -1) {
+            if (Math.Abs(b.toDouble() % 2) % 2 == 1) {
+                return result.neg();
+            }
+            else if (Math.Abs(b.toDouble() % 2) % 2 == 0) {
+                return result;
+            }
+
+            return dNaN;
+        }
+
         return result;
-      }
-      return Decimal.dNaN;
     }
 
-    return result;
-  }
+    public BigDouble pow10() {
+        /*
+        There are four cases we need to consider:
+        1) positive sign, positive mag (e15, ee15): +1 layer (e.g. 10^15 becomes e15, 10^e15 becomes ee15)
+        2) negative sign, positive mag (-e15, -ee15): +1 layer but sign and mag sign are flipped (e.g. 10^-15 becomes e-15, 10^-e15 becomes ee-15)
+        3) positive sign, negative mag (e-15, ee-15): layer 0 case would have been handled in the Math.Pow check, so just return 1
+        4) negative sign, negative mag (-e-15, -ee-15): layer 0 case would have been handled in the Math.Pow check, so just return 1
+        */
 
-  public pow10(){
-    /*
-    There are four cases we need to consider:
-    1) positive sign, positive mag (e15, ee15): +1 layer (e.g. 10^15 becomes e15, 10^e15 becomes ee15)
-    2) negative sign, positive mag (-e15, -ee15): +1 layer but sign and mag sign are flipped (e.g. 10^-15 becomes e-15, 10^-e15 becomes ee-15)
-    3) positive sign, negative mag (e-15, ee-15): layer 0 case would have been handled in the Math.pow check, so just return 1
-    4) negative sign, negative mag (-e-15, -ee-15): layer 0 case would have been handled in the Math.pow check, so just return 1
-    */
-
-    if (!Number.isFinite(this.layer) || !Number.isFinite(this.mag)) {
-      return Decimal.dNaN;
-    }
-
-    let a= this;
-
-    //handle layer 0 case - if no precision is lost just use Math.pow, else promote one layer
-    if (a.layer === 0) {
-      const newmag = Math.pow(10, a.sign * a.mag);
-      if (Number.isFinite(newmag) && Math.abs(newmag) >= 0.1) {
-        return FC(1, 0, newmag);
-      } else {
-        if (a.sign === 0) {
-          return Decimal.dOne;
-        } else {
-          a = FC_NN(a.sign, a.layer + 1, Math.log10(a.mag));
+        if (!double.IsFinite(layer) || !double.IsFinite(mag)) {
+            return dNaN;
         }
-      }
-    }
 
-    //handle all 4 layer 1+ cases individually
-    if (a.sign > 0 && a.mag >= 0) {
-      return FC(a.sign, a.layer + 1, a.mag);
-    }
-    if (a.sign < 0 && a.mag >= 0) {
-      return FC(-a.sign, a.layer + 1, -a.mag);
-    }
-    //both the negative mag cases are identical: one +/- rounding error
-    return Decimal.dOne;
-  }
+        var a = this;
 
-  public pow_base(value: DecimalSource){
-    return D(value).pow(this);
-  }
+        //handle layer 0 case - if no precision is lost just use Math.Pow, else promote one layer
+        if (a.layer == 0) {
+            var newmag = Math.Pow(10, a.sign * a.mag);
+            if (double.IsFinite(newmag) && Math.Abs(newmag) >= 0.1) {
+                return FC(1, 0, newmag);
+            }
 
-  public root(value: DecimalSource){
-    const decimal = D(value);
-    return this.pow(decimal.recip());
-  }
+            if (a.sign == 0) {
+                return dOne;
+            }
 
-  public factorial(){
-    if (this.mag < 0) {
-      return this.add(1).gamma();
-    } else if (this.layer === 0) {
-      return this.add(1).gamma();
-    } else if (this.layer === 1) {
-      return Decimal.exp(Decimal.mul(this, Decimal.ln(this).sub(1)));
-    } else {
-      return Decimal.exp(this);
-    }
-  }
-
-  //from HyperCalc source code
-  public gamma(){
-    if (this.mag < 0) {
-      return this.recip();
-    } else if (this.layer === 0) {
-      if (this.lt(FC_NN(1, 0, 24))) {
-        return Decimal.fromNumber(f_gamma(this.sign * this.mag));
-      }
-
-      const t = this.mag - 1;
-      let l = 0.9189385332046727; //0.5*Math.log(2*Math.PI)
-      l = l + (t + 0.5) * Math.log(t);
-      l = l - t;
-      const n2 = t * t;
-      let np = t;
-      let lm = 12 * np;
-      let adj = 1 / lm;
-      let l2 = l + adj;
-      if (l2 === l) {
-        return Decimal.exp(l);
-      }
-
-      l = l2;
-      np = np * n2;
-      lm = 360 * np;
-      adj = 1 / lm;
-      l2 = l - adj;
-      if (l2 === l) {
-        return Decimal.exp(l);
-      }
-
-      l = l2;
-      np = np * n2;
-      lm = 1260 * np;
-      let lt = 1 / lm;
-      l = l + lt;
-      np = np * n2;
-      lm = 1680 * np;
-      lt = 1 / lm;
-      l = l - lt;
-      return Decimal.exp(l);
-    } else if (this.layer === 1) {
-      return Decimal.exp(Decimal.mul(this, Decimal.ln(this).sub(1)));
-    } else {
-      return Decimal.exp(this);
-    }
-  }
-
-  public lngamma(){
-    return this.gamma().ln();
-  }
-
-  public exp(){
-    if (this.mag < 0) {
-      return Decimal.dOne;
-    }
-    if (this.layer === 0 && this.mag <= 709.7) {
-      return Decimal.fromNumber(Math.exp(this.sign * this.mag));
-    } else if (this.layer === 0) {
-      return FC(1, 1, this.sign * Math.log10(Math.E) * this.mag);
-    } else if (this.layer === 1) {
-      return FC(1, 2, this.sign * (Math.log10(0.4342944819032518) + this.mag));
-    } else {
-      return FC(1, this.layer + 1, this.sign * this.mag);
-    }
-  }
-
-  public sqr(){
-    return this.pow(2);
-  }
-
-  public sqrt(){
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.sqrt(this.sign * this.mag));
-    } else if (this.layer === 1) {
-      return FC(1, 2, Math.log10(this.mag) - 0.3010299956639812);
-    } else {
-      const result = Decimal.div(FC_NN(this.sign, this.layer - 1, this.mag), FC_NN(1, 0, 2));
-      result.layer += 1;
-      result.normalize();
-      return result;
-    }
-  }
-
-  public cube(){
-    return this.pow(3);
-  }
-
-  public cbrt(){
-    return this.pow(1 / 3);
-  }
-
-  //Tetration/tetrate: The result of exponentiating 'this' to 'this' 'height' times in a row.  https://en.wikipedia.org/wiki/Tetration
-  //If payload != 1, then this is 'iterated exponentiation', the result of exping (payload) to base (this) (height) times. https://andydude.github.io/tetration/archives/tetration2/ident.html
-  //Works with negative and positive real heights.
-  public tetrate(height = 2, payload: DecimalSource = FC_NN(1, 0, 1)){
-    //x^^1 == x
-    if (height === 1) {
-      return Decimal.pow(this, payload);
-    }
-    //x^^0 == 1
-    if (height === 0) {
-      return new Decimal(payload);
-    }
-    //1^^x == 1
-    if (this.eq(Decimal.dOne)) {
-      return Decimal.dOne;
-    }
-    //-1^^x == -1
-    if (this.eq(-1)) {
-      return Decimal.pow(this, payload);
-    }
-
-    if (height === Number.POSITIVE_INFINITY) {
-      const this_num = this.toNumber();
-      //within the convergence range?
-      if (this_num <= 1.44466786100976613366 && this_num >= 0.06598803584531253708) {
-        //hotfix for the very edge of the number range not being handled properly
-        if (this_num > 1.444667861009099) {
-          return Decimal.fromNumber(Math.E);
+            a = FC_NN(a.sign, a.layer + 1, Math.Log10(a.mag));
         }
-        //Formula for infinite height power tower.
-        const negln = Decimal.ln(this).neg();
-        return negln.lambertw().div(negln);
-      } else if (this_num > 1.44466786100976613366) {
-        //explodes to infinity
-        // TODO: replace this with Decimal.dInf
-        return Decimal.fromNumber(Number.POSITIVE_INFINITY);
-      } else {
-        //0.06598803584531253708 > this_num >= 0: never converges
-        //this_num < 0: quickly becomes a complex number
-        return Decimal.dNaN;
-      }
-    }
 
-    //0^^x oscillates if we define 0^0 == 1 (which in javascript land we do), since then 0^^1 is 0, 0^^2 is 1, 0^^3 is 0, etc. payload is ignored
-    //using the linear approximation for height (TODO: don't know a better way to calculate it ATM, but it wouldn't surprise me if it's just NaN)
-    if (this.eq(Decimal.dZero)) {
-      let result = Math.abs((height + 1) % 2);
-      if (result > 1) {
-        result = 2 - result;
-      }
-      return Decimal.fromNumber(result);
-    }
-
-    if (height < 0) {
-      return Decimal.iteratedlog(payload, this, -height);
-    }
-
-    payload = D(payload);
-    const oldheight = height;
-    height = Math.trunc(height);
-    const fracheight = oldheight - height;
-
-    if (this.gt(Decimal.dZero) && this.lte(1.44466786100976613366)) {
-      //similar to 0^^n, flip-flops between two values, converging slowly (or if it's below 0.06598803584531253708, never. so once again, the fractional part at the end will be a linear approximation (TODO: again pending knowledge of how to approximate better, although tbh I think it should in reality just be NaN)
-      height = Math.min(10000, height);
-      for (let i = 0; i < height; ++i) {
-        const old_payload= payload;
-        payload = this.pow(payload);
-        //stop early if we converge
-        if (old_payload.eq(payload)) {
-          return payload;
+        //handle all 4 layer 1+ cases individually
+        if (a.sign > 0 && a.mag >= 0) {
+            return FC(a.sign, a.layer + 1, a.mag);
         }
-      }
-      if (fracheight != 0) {
-        const next_payload = this.pow(payload);
-        return payload.mul(1 - fracheight).add(next_payload.mul(fracheight));
-      }
-      return payload;
-    }
-    //TODO: base < 0, but it's hard for me to reason about (probably all non-integer heights are NaN automatically?)
 
-    if (fracheight !== 0) {
-      if (payload.eq(Decimal.dOne)) {
+        if (a.sign < 0 && a.mag >= 0) {
+            return FC(-a.sign, a.layer + 1, -a.mag);
+        }
+
+        //both the negative mag cases are identical: one +/- rounding error
+        return dOne;
+    }
+
+    public BigDouble powBase(dynamic value) {
+        return D(value).pow(this);
+    }
+
+    public BigDouble root(dynamic value) {
+        BigDouble dec = D(value);
+        return pow(dec.recip());
+    }
+
+    public BigDouble factorial() {
+        if (mag < 0) {
+            return add(1).gamma();
+        }
+
+        switch (layer) {
+            case 0:
+                return add(1).gamma();
+            case 1:
+                return exp(mul(this, ln(this).sub(1)));
+            default:
+                return exp(this);
+        }
+    }
+
+    //from HyperCalc source code
+    public BigDouble gamma() {
+        if (mag < 0) {
+            return recip();
+        }
+
+        switch (layer) {
+            case 0 when this.lt(FC_NN(1, 0, 24)):
+                return fromDouble(f_gamma(sign * mag));
+            case 0: {
+                var t = mag - 1;
+                var l = 0.9189385332046727; //0.5*Math.Log(2*Math.PI)
+                l += (t + 0.5) * Math.Log(t);
+                l -= t;
+                var n2 = t * t;
+                var np = t;
+                var lm = 12 * np;
+                var adj = 1 / lm;
+                var l2 = l + adj;
+                if (l2 == l) {
+                    return exp(l);
+                }
+
+                l = l2;
+                np *= n2;
+                lm = 360 * np;
+                adj = 1 / lm;
+                l2 = l - adj;
+                if (l2 == l) {
+                    return exp(l);
+                }
+
+                l = l2;
+                np *= n2;
+                lm = 1260 * np;
+                var lt = 1 / lm;
+                l += lt;
+                np *= n2;
+                lm = 1680 * np;
+                lt = 1 / lm;
+                l -= lt;
+                return exp(l);
+            }
+            case 1:
+                return exp(mul(this, ln(this).sub(1)));
+            default:
+                return exp(this);
+        }
+    }
+
+    public BigDouble lngamma() {
+        return this.gamma().ln();
+    }
+
+    public BigDouble exp() {
+        if (mag < 0) {
+            return dOne;
+        }
+
+        switch (layer) {
+            case 0 when mag <= 709.7:
+                return fromDouble(Math.Exp(sign * mag));
+            case 0:
+                return FC(1, 1, sign * Math.Log10(Math.E) * mag);
+            case 1:
+                return FC(1, 2, sign * (Math.Log10(0.4342944819032518) + mag));
+            default:
+                return FC(1, layer + 1, sign * mag);
+        }
+    }
+
+    public BigDouble sqr() {
+        return this.pow(2);
+    }
+
+    public BigDouble sqrt() {
+        switch (layer) {
+            case 0:
+                return fromDouble(Math.Sqrt(sign * mag));
+            case 1:
+                return FC(1, 2, Math.Log10(mag) - 0.3010299956639812);
+            default: {
+                var result = div(FC_NN(sign, layer - 1, mag), FC_NN(1, 0, 2));
+                result.layer += 1;
+                result.normalize();
+                return result;
+            }
+        }
+    }
+
+    public BigDouble cube() {
+        return pow(3);
+    }
+
+    public BigDouble cbrt() {
+        return pow(1 / 3);
+    }
+
+    //Tetration/tetrate: The result of exponentiating 'this' to 'this' 'height' times in a row.  https://en.wikipedia.org/wiki/Tetration
+    //If payload != 1, then this is 'iterated exponentiation', the result of exping (payload) to base (this) (height) times. https://andydude.github.io/tetration/archives/tetration2/ident.html
+    //Works with negative and positive real heights.
+    public BigDouble tetrate(double height = 2, dynamic payload = null) {
+        payload ??= FC_NN(1, 0, 1);
+
+        //x^^1 == x
+        if (height == 1) {
+            return pow(this, payload);
+        }
+
+        //x^^0 == 1
+        if (height == 0) {
+            return new BigDouble(payload);
+        }
+
+        //1^^x == 1
+        if (eq(dOne)) {
+            return dOne;
+        }
+
+        //-1^^x == -1
+        if (eq(-1)) {
+            return pow(this, payload);
+        }
+
+        if (double.IsPositiveInfinity(height)) {
+            var this_num = this.toDouble();
+            switch (this_num) {
+                //within the convergence range?
+                //hotfix for the very edge of the number range not being handled properly
+                case <= 1.44466786100976613366 and >= 0.06598803584531253708 and > 1.444667861009099:
+                    return fromDouble(Math.E);
+                //Formula for infinite height power tower.
+                case <= 1.44466786100976613366 and >= 0.06598803584531253708: {
+                    var negln = ln(this).neg();
+                    return negln.lambertw().div(negln);
+                }
+                case > 1.44466786100976613366:
+                    //explodes to infinity
+                    // TODO: replace this with dec.dInf
+                    return fromDouble(double.PositiveInfinity);
+                default:
+                    //0.06598803584531253708 > this_num >= 0: never converges
+                    //this_num < 0: quickly becomes a complex number
+                    return dNaN;
+            }
+        }
+
+        //0^^x oscillates if we define 0^0 == 1 (which in javascript land we do), since then 0^^1 is 0, 0^^2 is 1, 0^^3 is 0, etc. payload is ignored
+        //using the linear approximation for height (TODO: don't know a better way to calculate it ATM, but it wouldn't surprise me if it's just NaN)
+        if (eq(dZero)) {
+            var result = Math.Abs((height + 1) % 2);
+            if (result > 1) {
+                result = 2 - result;
+            }
+
+            return fromDouble(result);
+        }
+
+        if (height < 0) {
+            return iteratedlog(payload, this, -height);
+        }
+
+        payload = D(payload);
+        var oldheight = height;
+        height = Math.Truncate(height);
+        var fracheight = oldheight - height;
+
+        if (gt(dZero) && this.lte(1.44466786100976613366)) {
+            //similar to 0^^n, flip-flops between two values, converging slowly (or if it's below 0.06598803584531253708, never. so once again, the fractional part at the end will be a linear approximation (TODO: again pending knowledge of how to approximate better, although tbh I think it should in reality just be NaN)
+            height = Math.Min(10000, height);
+            for (var i = 0; i < height; ++i) {
+                var old_payload = payload;
+                payload = this.pow(payload);
+                //stop early if we converge
+                if (old_payload.eq(payload)) {
+                    return payload;
+                }
+            }
+
+            if (fracheight != 0) {
+                var next_payload = this.pow(payload);
+                return payload.mul(1 - fracheight).add(next_payload.mul(fracheight));
+            }
+
+            return payload;
+        }
+        //TODO: base < 0, but it's hard for me to reason about (probably all non-integer heights are NaN automatically?)
+
+        if (fracheight != 0) {
+            if (payload.eq(dOne)) {
+                //TODO: for bases above 10, revert to old linear approximation until I can think of something better
+                if (gt(10)) {
+                    payload = pow(fracheight);
+                }
+                else {
+                    payload = fromDouble(tetrateCritical(toDouble(), fracheight));
+                    //TODO: until the critical section grid can handle numbers below 2, scale them to the base
+                    //TODO: maybe once the critical section grid has very large bases, this math can be appropriate for them too? I'll think about it
+                    if (this.lt(2)) {
+                        payload = payload.sub(1).mul(minus(1)).plus(1);
+                    }
+                }
+            }
+            else {
+                payload = eq(10) ? payload.layeradd10(fracheight) : payload.layeradd(fracheight, this);
+            }
+        }
+
+        for (var i = 0; i < height; ++i) {
+            payload = this.pow(payload);
+            //bail if we're NaN
+            if (!isFinite(payload.layer) || !isFinite(payload.mag)) {
+                return payload.normalize();
+            }
+
+            //shortcut
+            if (payload.layer - this.layer > 3) {
+                return FC_NN(payload.sign, payload.layer + (height - i - 1), payload.mag);
+            }
+
+            //give up after 10000 iterations if nothing is happening
+            if (i > 10000) {
+                return payload;
+            }
+        }
+
+        return payload;
+    }
+
+    //iteratedexp/iterated exponentiation: - all cases handled in tetrate, so just call it
+    public BigDouble iteratedexp(double height = 2, dynamic? payload = null) {
+        payload ??= FC_NN(1, 0, 1);
+        return this.tetrate(height, payload);
+    }
+
+    //iterated log/repeated log: The result of applying log(base) 'times' times in a row. Approximately equal to subtracting (times) from the number's slog representation. Equivalent to tetrating to a negative height.
+    //Works with negative and positive real heights.
+    public BigDouble iteratedlog(dynamic? @base = null, double times = 1) {
+        @base ??= 10;
+        if (times < 0) {
+            return tetrate(@base, -times, this);
+        }
+
+        @base = D(@base);
+        var result = fromBigDouble(this);
+        var fulltimes = times;
+        times = Math.Truncate(times);
+        var fraction = fulltimes - times;
+        if (result.layer - @base.layer > 3) {
+            var layerloss = Math.Min(times, result.layer - @base.layer - 3);
+            times -= layerloss;
+            result.layer -= layerloss;
+        }
+
+        for (var i = 0; i < times; ++i) {
+            result = result.log(@base);
+            //bail if we're NaN
+            if (!isFinite(result.layer) || !isFinite(result.mag)) {
+                return result.normalize();
+            }
+
+            //give up after 10000 iterations if nothing is happening
+            if (i > 10000) {
+                return result;
+            }
+        }
+
+        //handle fractional part
+        if (fraction > 0 && fraction < 1) {
+            if (@base.eq(10)) {
+                result = result.layeradd10(-fraction);
+            }
+            else {
+                result = result.layeradd(-fraction, @base);
+            }
+        }
+
+        return result;
+    }
+
+    //Super-logarithm, one of tetration's inverses, tells you what size power tower you'd have to tetrate base to to get number. By definition, will never be higher than 1.8e308 in break_eternity.js, since a power tower 1.8e308 numbers tall is the largest representable number.
+    // https://en.wikipedia.org/wiki/Super-logarithm
+    // NEW: Accept a number of iterations, and use binary search to, after making an initial guess, hone in on the true value, assuming tetration as the ground truth.
+    public BigDouble slog(dynamic? @base = null, int iterations = 100) {
+        @base ??= 10;
+        var step_size = 0.001;
+        var has_changed_directions_once = false;
+        var previously_rose = false;
+        var result = this.slogTnternal(@base).toNumber();
+        for (var i = 1; i < iterations; ++i) {
+            var new_dec = new BigDouble(@base).tetrate(result);
+            var currently_rose = new_dec.gt(this);
+            if (i > 1) {
+                if (previously_rose != currently_rose) {
+                    has_changed_directions_once = true;
+                }
+            }
+
+            previously_rose = currently_rose;
+            if (has_changed_directions_once) {
+                step_size /= 2;
+            }
+            else {
+                step_size *= 2;
+            }
+
+            step_size = Math.Abs(step_size) * (currently_rose ? -1 : 1);
+            result += step_size;
+            if (step_size == 0) {
+                break;
+            }
+        }
+
+        return fromDouble(result);
+    }
+
+    public BigDouble slogTnternal(dynamic? @base) {
+        @base ??= 10;
+        BigDouble b = D(@base);
+
+        //special cases:
+        //slog base 0 or lower is NaN
+        if (b.lte(dZero)) {
+            return dNaN;
+        }
+
+        //slog base 1 is NaN
+        if (b.eq(dOne)) {
+            return dNaN;
+        }
+
+        //need to handle these small, wobbling bases specially
+        if (b.lt(dOne)) {
+            if (this.eq(dOne)) {
+                return dZero;
+            }
+
+            if (this.eq(dZero)) {
+                return dNegOne;
+            }
+
+            //0 < this < 1: ambiguous (happens multiple times)
+            //this < 0: impossible (as far as I can tell)
+            //this > 1: partially complex (http://myweb.astate.edu/wpaulsen/tetcalc/tetcalc.html base 0.25 for proof)
+            return dNaN;
+        }
+
+        //slog_n(0) is -1
+        if (this.mag < 0 || this.eq(dZero)) {
+            return dNegOne;
+        }
+
+        var result = 0;
+        var copy = fromBigDouble(this);
+        if (copy.layer - b.layer > 3) {
+            var layerloss = (int)(copy.layer - b.layer - 3);
+            result += layerloss;
+            copy.layer -= layerloss;
+        }
+
+        for (var i = 0; i < 100; ++i) {
+            if (copy.lt(dZero)) {
+                copy = pow(b, copy);
+                result -= 1;
+            }
+            else if (copy.lte(dOne)) {
+                return fromDouble(result + slogCritical(b.toDouble(), copy.toDouble()));
+            }
+            else {
+                result += 1;
+                copy = log(copy, b);
+            }
+        }
+
+        return fromDouble(result);
+    }
+
+    //background info and tables of values for critical functions taken here: https://github.com/Patashu/break_eternity.js/issues/22
+    public static double slogCritical(double @base, double height) {
         //TODO: for bases above 10, revert to old linear approximation until I can think of something better
-        if (this.gt(10)) {
-          payload = this.pow(fracheight);
-        } else {
-          payload = Decimal.fromNumber(Decimal.tetrate_critical(this.toNumber(), fracheight));
-          //TODO: until the critical section grid can handle numbers below 2, scale them to the base
-          //TODO: maybe once the critical section grid has very large bases, this math can be appropriate for them too? I'll think about it
-          if (this.lt(2)) {
-            payload = payload.sub(1).mul(this.minus(1)).plus(1);
-          }
+        if (@base > 10) {
+            return height - 1;
         }
-      } else {
-        if (this.eq(10)) {
-          payload = payload.layeradd10(fracheight);
-        } else {
-          payload = payload.layeradd(fracheight, this);
+
+        return criticalSection(@base, height, criticalSlogValues);
+    }
+
+    public static double tetrateCritical(double @base, double height) {
+        return criticalSection(@base, height, criticalTetrValues);
+    }
+
+    public static double criticalSection(double @base, double height, double[,] grid) {
+        //this part is simple at least, since it's just 0.1 to 0.9
+        height *= 10;
+        if (height < 0) {
+            height = 0;
         }
-      }
-    }
 
-    for (let i = 0; i < height; ++i) {
-      payload = this.pow(payload);
-      //bail if we're NaN
-      if (!isFinite(payload.layer) || !isFinite(payload.mag)) {
-        return payload.normalize();
-      }
-      //shortcut
-      if (payload.layer - this.layer > 3) {
-        return FC_NN(payload.sign, payload.layer + (height - i - 1), payload.mag);
-      }
-      //give up after 10000 iterations if nothing is happening
-      if (i > 10000) {
-        return payload;
-      }
-    }
-    return payload;
-  }
-
-  //iteratedexp/iterated exponentiation: - all cases handled in tetrate, so just call it
-  public iteratedexp(height = 2, payload = FC_NN(1, 0, 1)){
-    return this.tetrate(height, payload);
-  }
-
-  //iterated log/repeated log: The result of applying log(base) 'times' times in a row. Approximately equal to subtracting (times) from the number's slog representation. Equivalent to tetrating to a negative height.
-  //Works with negative and positive real heights.
-  public iteratedlog(base: DecimalSource = 10, times = 1){
-    if (times < 0) {
-      return Decimal.tetrate(base, -times, this);
-    }
-
-    base = D(base);
-    let result = Decimal.fromDecimal(this);
-    const fulltimes = times;
-    times = Math.trunc(times);
-    const fraction = fulltimes - times;
-    if (result.layer - base.layer > 3) {
-      const layerloss = Math.min(times, result.layer - base.layer - 3);
-      times -= layerloss;
-      result.layer -= layerloss;
-    }
-
-    for (let i = 0; i < times; ++i) {
-      result = result.log(base);
-      //bail if we're NaN
-      if (!isFinite(result.layer) || !isFinite(result.mag)) {
-        return result.normalize();
-      }
-      //give up after 10000 iterations if nothing is happening
-      if (i > 10000) {
-        return result;
-      }
-    }
-
-    //handle fractional part
-    if (fraction > 0 && fraction < 1) {
-      if (base.eq(10)) {
-        result = result.layeradd10(-fraction);
-      } else {
-        result = result.layeradd(-fraction, base);
-      }
-    }
-
-    return result;
-  }
-
-  //Super-logarithm, one of tetration's inverses, tells you what size power tower you'd have to tetrate base to to get number. By definition, will never be higher than 1.8e308 in break_eternity.js, since a power tower 1.8e308 numbers tall is the largest representable number.
-  // https://en.wikipedia.org/wiki/Super-logarithm
-  // NEW: Accept a number of iterations, and use binary search to, after making an initial guess, hone in on the true value, assuming tetration as the ground truth.
-  public slog(base: DecimalSource = 10, iterations = 100){
-    let step_size = 0.001;
-    let has_changed_directions_once = false;
-    let previously_rose = false;
-    let result = this.slog_internal(base).toNumber();
-    for (var i = 1; i < iterations; ++i)
-    {
-      let new_decimal = new Decimal(base).tetrate(result);
-      let currently_rose = new_decimal.gt(this);
-      if (i > 1)
-      {
-        if (previously_rose != currently_rose)
-        {
-          has_changed_directions_once = true;
+        if (height > 10) {
+            height = 10;
         }
-      }
-      previously_rose = currently_rose;
-      if (has_changed_directions_once)
-      {
-        step_size /= 2;
-      }
-      else
-      {
-        step_size *= 2;
-      }
-      step_size = Math.abs(step_size) * (currently_rose ? -1 : 1);
-      result += step_size;
-      if (step_size === 0) { break; }
-    }
-    return Decimal.fromNumber(result);
-  }
-  
-  public slog_internal(base: DecimalSource = 10){
-    base = D(base);
 
-    //special cases:
-    //slog base 0 or lower is NaN
-    if (base.lte(Decimal.dZero)) {
-      return Decimal.dNaN;
-    }
-    //slog base 1 is NaN
-    if (base.eq(Decimal.dOne)) {
-      return Decimal.dNaN;
-    }
-    //need to handle these small, wobbling bases specially
-    if (base.lt(Decimal.dOne)) {
-      if (this.eq(Decimal.dOne)) {
-        return Decimal.dZero;
-      }
-      if (this.eq(Decimal.dZero)) {
-        return Decimal.dNegOne;
-      }
-      //0 < this < 1: ambiguous (happens multiple times)
-      //this < 0: impossible (as far as I can tell)
-      //this > 1: partially complex (http://myweb.astate.edu/wpaulsen/tetcalc/tetcalc.html base 0.25 for proof)
-      return Decimal.dNaN;
-    }
-    //slog_n(0) is -1
-    if (this.mag < 0 || this.eq(Decimal.dZero)) {
-      return Decimal.dNegOne;
-    }
+        //have to do this complicated song and dance since one of the criticalHeaders is Math.E, and in the future I'd like 1.5 as well
+        if (@base < 2) {
+            @base = 2;
+        }
 
-    let result = 0;
-    let copy = Decimal.fromDecimal(this);
-    if (copy.layer - base.layer > 3) {
-      const layerloss = copy.layer - base.layer - 3;
-      result += layerloss;
-      copy.layer -= layerloss;
-    }
+        if (@base > 10) {
+            @base = 10;
+        }
 
-    for (let i = 0; i < 100; ++i) {
-      if (copy.lt(Decimal.dZero)) {
-        copy = Decimal.pow(base, copy);
-        result -= 1;
-      } else if (copy.lte(Decimal.dOne)) {
-        return Decimal.fromNumber(result + Decimal.slog_critical(base.toNumber(), copy.toNumber()));
-      } else {
-        result += 1;
-        copy = Decimal.log(copy, base);
-      }
-    }
-    return Decimal.fromNumber(result);
-  }
-
-  //background info and tables of values for critical functions taken here: https://github.com/Patashu/break_eternity.js/issues/22
-  public static slog_critical(base: number, height: number): number {
-    //TODO: for bases above 10, revert to old linear approximation until I can think of something better
-    if (base > 10) {
-      return height - 1;
-    }
-    return Decimal.critical_section(base, height, critical_slog_values);
-  }
-
-  public static tetrate_critical(base: number, height: number): number {
-    return Decimal.critical_section(base, height, critical_tetr_values);
-  }
-
-  public static critical_section(base: number, height: number, grid: number[][]): number {
-    //this part is simple at least, since it's just 0.1 to 0.9
-    height *= 10;
-    if (height < 0) {
-      height = 0;
-    }
-    if (height > 10) {
-      height = 10;
-    }
-    //have to do this complicated song and dance since one of the critical_headers is Math.E, and in the future I'd like 1.5 as well
-    if (base < 2) {
-      base = 2;
-    }
-    if (base > 10) {
-      base = 10;
-    }
-    let lower = 0;
-    let upper = 0;
-    //basically, if we're between bases, we interpolate each bases' relevant values together
-    //then we interpolate based on what the fractional height is.
-    //accuracy could be improved by doing a non-linear interpolation (maybe), by adding more bases and heights (definitely) but this is AFAIK the best you can get without running some pari.gp or mathematica program to calculate exact values
-    //however, do note http://myweb.astate.edu/wpaulsen/tetcalc/tetcalc.html can do it for arbitrary heights but not for arbitrary bases (2, e, 10 present)
-    for (let i = 0; i < critical_headers.length; ++i) {
-      if (critical_headers[i] == base) {
-        // exact match
-        lower = grid[i][Math.floor(height)];
-        upper = grid[i][Math.ceil(height)];
-        break;
-      } else if (critical_headers[i] < base && critical_headers[i + 1] > base) {
-        // interpolate between this and the next
-        const basefrac =
-          (base - critical_headers[i]) / (critical_headers[i + 1] - critical_headers[i]);
-        lower =
-          grid[i][Math.floor(height)] * (1 - basefrac) + grid[i + 1][Math.floor(height)] * basefrac;
-        upper =
-          grid[i][Math.ceil(height)] * (1 - basefrac) + grid[i + 1][Math.ceil(height)] * basefrac;
-        break;
-      }
-    }
-    const frac = height - Math.floor(height);
-    //improvement - you get more accuracy (especially around 0.9-1.0) by doing log, then frac, then powing the result
-    //(we could pre-log the lookup table, but then fractional bases would get Weird)
-    //also, use old linear for slog (values 0 or less in critical section). maybe something else is better but haven't thought about what yet
-    if (lower <= 0 || upper <= 0)
-    {
-      return lower * (1 - frac) + upper * frac;
-    }
-    else
-    {
-      return Math.pow(base, (Math.log(lower)/Math.log(base)) * (1 - frac) + (Math.log(upper)/Math.log(base)) * frac );
-    }
-  }
-
-  //Function for adding/removing layers from a Decimal, even fractional layers (e.g. its slog10 representation).
-  //Moved this over to use the same critical section as tetrate/slog.
-  public layeradd10(diff: DecimalSource){
-    diff = Decimal.fromValue_noAlloc(diff).toNumber();
-    const result = Decimal.fromDecimal(this);
-    if (diff >= 1) {
-      //bug fix: if result is very smol (mag < 0, layer > 0) turn it into 0 first
-      if (result.mag < 0 && result.layer > 0) {
-        result.sign = 0;
-        result.mag = 0;
-        result.layer = 0;
-      } else if (result.sign === -1 && result.layer == 0) {
-        //bug fix - for stuff like -3.layeradd10(1) we need to move the sign to the mag
-        result.sign = 1;
-        result.mag = -result.mag;
-      }
-      const layeradd = Math.trunc(diff);
-      diff -= layeradd;
-      result.layer += layeradd;
-    }
-    if (diff <= -1) {
-      const layeradd = Math.trunc(diff);
-      diff -= layeradd;
-      result.layer += layeradd;
-      if (result.layer < 0) {
-        for (let i = 0; i < 100; ++i) {
-          result.layer++;
-          result.mag = Math.log10(result.mag);
-          if (!isFinite(result.mag)) {
-            //another bugfix: if we hit -Infinity mag, then we should return negative infinity, not 0. 0.layeradd10(-1) h its this
-            if (result.sign === 0) {
-              result.sign = 1;
+        var lower = 0d;
+        var upper = 0d;
+        //basically, if we're between bases, we interpolate each bases' relevant values together
+        //then we interpolate based on what the fractional height is.
+        //accuracy could be improved by doing a non-linear interpolation (maybe), by adding more bases and heights (definitely) but this is AFAIK the best you can get without running some pari.gp or mathematica program to calculate exact values
+        //however, do note http://myweb.astate.edu/wpaulsen/tetcalc/tetcalc.html can do it for arbitrary heights but not for arbitrary bases (2, e, 10 present)
+        for (var i = 0; i < criticalHeaders.Length; ++i) {
+            if (criticalHeaders[i] == @base) {
+                // exact match
+                lower = grid[i, (int)Math.Floor(height)];
+                upper = grid[i, (int)Math.Ceiling(height)];
+                break;
             }
-            //also this, for 0.layeradd10(-2)
+            else if (criticalHeaders[i] < @base && criticalHeaders[i + 1] > @base) {
+                // interpolate between this and the next
+                var basefrac =
+                    (@base - criticalHeaders[i]) / (criticalHeaders[i + 1] - criticalHeaders[i]);
+                lower =
+                    grid[i, (int)Math.Floor(height)] * (1 - basefrac) + grid[i + 1, (int)Math.Floor(height)] * basefrac;
+                upper =
+                    grid[i, (int)Math.Ceiling(height)] * (1 - basefrac) +
+                    grid[i + 1, (int)Math.Ceiling(height)] * basefrac;
+                break;
+            }
+        }
+
+        var frac = height - Math.Floor(height);
+        //improvement - you get more accuracy (especially around 0.9-1.0) by doing log, then frac, then powing the result
+        //(we could pre-log the lookup table, but then fractional bases would get Weird)
+        //also, use old linear for slog (values 0 or less in critical section). maybe something else is better but haven't thought about what yet
+        if (lower <= 0 || upper <= 0) {
+            return lower * (1 - frac) + upper * frac;
+        }
+        else {
+            return Math.Pow(@base,
+                (Math.Log(lower) / Math.Log(@base)) * (1 - frac) + (Math.Log(upper) / Math.Log(@base)) * frac);
+        }
+    }
+
+    //Function for adding/removing layers from a dec, even fractional layers (e.g. its slog10 representation).
+    //Moved this over to use the same critical section as tetrate/slog.
+    public BigDouble layeradd10(dynamic diff) {
+        diff = fromValueNoAlloc(diff).toNumber();
+        var result = fromBigDouble(this);
+        if (diff >= 1) {
+            //bug fix: if result is very smol (mag < 0, layer > 0) turn it into 0 first
+            if (result.mag < 0 && result.layer > 0) {
+                result.sign = 0;
+                result.mag = 0;
+                result.layer = 0;
+            }
+            else if (result.sign == -1 && result.layer == 0) {
+                //bug fix - for stuff like -3.layeradd10(1) we need to move the sign to the mag
+                result.sign = 1;
+                result.mag = -result.mag;
+            }
+
+            var layeradd = Math.Truncate(diff);
+            diff -= layeradd;
+            result.layer += layeradd;
+        }
+
+        if (diff <= -1) {
+            var layeradd = Math.Truncate(diff);
+            diff -= layeradd;
+            result.layer += layeradd;
             if (result.layer < 0) {
-              result.layer = 0;
+                for (var i = 0; i < 100; ++i) {
+                    result.layer++;
+                    result.mag = Math.Log10(result.mag);
+                    if (!isFinite(result.mag)) {
+                        //another bugfix: if we hit -Infinity mag, then we should return negative infinity, not 0. 0.layeradd10(-1) h its this
+                        if (result.sign == 0) {
+                            result.sign = 1;
+                        }
+
+                        //also this, for 0.layeradd10(-2)
+                        if (result.layer < 0) {
+                            result.layer = 0;
+                        }
+
+                        return result.normalize();
+                    }
+
+                    if (result.layer >= 0) {
+                        break;
+                    }
+                }
             }
-            return result.normalize();
-          }
-          if (result.layer >= 0) {
-            break;
-          }
         }
-      }
-    }
 
-    while (result.layer < 0) {
-      result.layer++;
-      result.mag = Math.log10(result.mag);
-    }
-    //bugfix: before we normalize: if we started with 0, we now need to manually fix a layer ourselves!
-    if (result.sign === 0) {
-      result.sign = 1;
-      if (result.mag === 0 && result.layer >= 1) {
-        result.layer -= 1;
-        result.mag = 1;
-      }
-    }
-    result.normalize();
-
-    //layeradd10: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 10 and iterated log base 10. Also equivalent to adding a fractional amount to the number's layer in its break_eternity.js representation.
-    if (diff !== 0) {
-      return result.layeradd(diff, 10); //safe, only calls positive height 1 payload tetration, slog and log
-    }
-
-    return result;
-  }
-
-  //layeradd: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 'base' and iterated log base 'base'.
-  public layeradd(diff: number, base: DecimalSource){
-    const slogthis = this.slog(base).toNumber();
-    const slogdest = slogthis + diff;
-    if (slogdest >= 0) {
-      return Decimal.tetrate(base, slogdest);
-    } else if (!Number.isFinite(slogdest)) {
-      return Decimal.dNaN;
-    } else if (slogdest >= -1) {
-      return Decimal.log(Decimal.tetrate(base, slogdest + 1), base);
-    } else {
-      return Decimal.log(Decimal.log(Decimal.tetrate(base, slogdest + 2), base), base);
-    }
-  }
-
-  //The Lambert W function, also called the omega function or product logarithm, is the solution W(x) === x*e^x.
-  // https://en.wikipedia.org/wiki/Lambert_W_function
-  //Some special values, for testing: https://en.wikipedia.org/wiki/Lambert_W_function#Special_values
-  public lambertw(){
-    if (this.lt(-0.3678794411710499)) {
-      throw Error("lambertw is unimplemented for results less than -1, sorry!");
-    } else if (this.mag < 0) {
-      return Decimal.fromNumber(f_lambertw(this.toNumber()));
-    } else if (this.layer === 0) {
-      return Decimal.fromNumber(f_lambertw(this.sign * this.mag));
-    } else if (this.layer === 1) {
-      return d_lambertw(this);
-    } else if (this.layer === 2) {
-      return d_lambertw(this);
-    }
-    if (this.layer >= 3) {
-      return FC_NN(this.sign, this.layer - 1, this.mag);
-    }
-
-    throw "Unhandled behavior in lambertw()";
-  }
-
-  //The super square-root function - what number, tetrated to height 2, equals this?
-  //Other sroots are possible to calculate probably through guess and check methods, this one is easy though.
-  // https://en.wikipedia.org/wiki/Tetration#Super-root
-  public ssqrt(){
-    if (this.sign == 1 && this.layer >= 3) {
-      return FC_NN(this.sign, this.layer - 1, this.mag);
-    }
-    const lnx = this.ln();
-    return lnx.div(lnx.lambertw());
-  }
-
-  //Pentation/pentate: The result of tetrating 'height' times in a row. An absurdly strong operator - Decimal.pentate(2, 4.28) and Decimal.pentate(10, 2.37) are already too huge for break_eternity.js!
-  // https://en.wikipedia.org/wiki/Pentation
-  public pentate(height = 2, payload: DecimalSource = FC_NN(1, 0, 1)){
-    payload = D(payload);
-    const oldheight = height;
-    height = Math.trunc(height);
-    const fracheight = oldheight - height;
-
-    //I have no idea if this is a meaningful approximation for pentation to continuous heights, but it is monotonic and continuous.
-    if (fracheight !== 0) {
-      if (payload.eq(Decimal.dOne)) {
-        ++height;
-        payload = Decimal.fromNumber(fracheight);
-      } else {
-        if (this.eq(10)) {
-          payload = payload.layeradd10(fracheight);
-        } else {
-          payload = payload.layeradd(fracheight, this);
+        while (result.layer < 0) {
+            result.layer++;
+            result.mag = Math.Log10(result.mag);
         }
-      }
+
+        //bugfix: before we normalize: if we started with 0, we now need to manually fix a layer ourselves!
+        if (result.sign == 0) {
+            result.sign = 1;
+            if (result.mag == 0 && result.layer >= 1) {
+                result.layer -= 1;
+                result.mag = 1;
+            }
+        }
+
+        result.normalize();
+
+        //layeradd10: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 10 and iterated log base 10. Also equivalent to adding a fractional amount to the number's layer in its break_eternity.js representation.
+        if (diff != 0) {
+            return result.layeradd(diff, 10); //safe, only calls positive height 1 payload tetration, slog and log
+        }
+
+        return result;
     }
 
-    for (let i = 0; i < height; ++i) {
-      payload = this.tetrate(payload.toNumber());
-      //bail if we're NaN
-      if (!isFinite(payload.layer) || !isFinite(payload.mag)) {
-        return payload.normalize();
-      }
-      //give up after 10 iterations if nothing is happening
-      if (i > 10) {
-        return payload;
-      }
+    //layeradd: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 'base' and iterated log base 'base'.
+    public BigDouble layeradd(double diff, dynamic @base) {
+        var slogthis = this.slog(@base).toNumber();
+        var slogdest = slogthis + diff;
+        if (slogdest >= 0) {
+            return tetrate(@base, slogdest);
+        }
+
+        if (!double.IsFinite(slogdest)) {
+            return dNaN;
+        }
+
+        if (slogdest >= -1) {
+            return log(tetrate(@base, slogdest + 1), @base);
+        }
+
+        return log(log(tetrate(@base, slogdest + 2), @base), @base);
     }
 
-    return payload;
-  }
+    //The Lambert W function, also called the omega function or product logarithm, is the solution W(x) === x*e^x.
+    // https://en.wikipedia.org/wiki/Lambert_W_function
+    //Some special values, for testing: https://en.wikipedia.org/wiki/Lambert_W_function#Special_values
+    public BigDouble lambertw() {
+        if (lt(-0.3678794411710499)) {
+            throw new ArgumentException("lambertw is unimplemented for results less than -1, sorry!");
+        }
 
-  // trig functions!
-  public sin(): this | Decimal {
-    if (this.mag < 0) {
-      return this;
-    }
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.sin(this.sign * this.mag));
-    }
-    return FC_NN(0, 0, 0);
-  }
+        if (mag < 0) {
+            return fromDouble(f_lambertw(this.toDouble()));
+        }
 
-  public cos(){
-    if (this.mag < 0) {
-      return Decimal.dOne;
-    }
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.cos(this.sign * this.mag));
-    }
-    return FC_NN(0, 0, 0);
-  }
-
-  public tan(): this | Decimal {
-    if (this.mag < 0) {
-      return this;
-    }
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.tan(this.sign * this.mag));
-    }
-    return FC_NN(0, 0, 0);
-  }
-
-  public asin(): this | Decimal {
-    if (this.mag < 0) {
-      return this;
-    }
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.asin(this.sign * this.mag));
-    }
-    return FC_NN(Number.NaN, Number.NaN, Number.NaN);
-  }
-
-  public acos(){
-    if (this.mag < 0) {
-      return Decimal.fromNumber(Math.acos(this.toNumber()));
-    }
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.acos(this.sign * this.mag));
-    }
-    return FC_NN(Number.NaN, Number.NaN, Number.NaN);
-  }
-
-  public atan(): this | Decimal {
-    if (this.mag < 0) {
-      return this;
-    }
-    if (this.layer === 0) {
-      return Decimal.fromNumber(Math.atan(this.sign * this.mag));
-    }
-    return Decimal.fromNumber(Math.atan(this.sign * 1.8e308));
-  }
-
-  public sinh(){
-    return this.exp().sub(this.negate().exp()).div(2);
-  }
-
-  public cosh(){
-    return this.exp().add(this.negate().exp()).div(2);
-  }
-
-  public tanh(){
-    return this.sinh().div(this.cosh());
-  }
-
-  public asinh(){
-    return Decimal.ln(this.add(this.sqr().add(1).sqrt()));
-  }
-
-  public acosh(){
-    return Decimal.ln(this.add(this.sqr().sub(1).sqrt()));
-  }
-
-  public atanh(){
-    if (this.abs().gte(1)) {
-      return FC_NN(Number.NaN, Number.NaN, Number.NaN);
+        switch (layer) {
+            case 0:
+                return fromDouble(f_lambertw(sign * mag));
+            case 1:
+                return d_lambertw(this);
+            case 2:
+                return d_lambertw(this);
+            case >= 3:
+                return FC_NN(sign, layer - 1, mag);
+            default:
+                throw new ArgumentException("Unhandled behavior in lambertw()");
+        }
     }
 
-    return Decimal.ln(this.add(1).div(Decimal.fromNumber(1).sub(this))).div(2);
-  }
+    //The super square-root function - what number, tetrated to height 2, equals this?
+    //Other sroots are possible to calculate probably through guess and check methods, this one is easy though.
+    // https://en.wikipedia.org/wiki/Tetration#Super-root
+    public BigDouble ssqrt() {
+        if (sign == 1 && layer >= 3) {
+            return FC_NN(sign, layer - 1, mag);
+        }
 
-  /**
+        var lnx = ln();
+        return lnx.div(lnx.lambertw());
+    }
+
+    //Pentation/pentate: The result of tetrating 'height' times in a row. An absurdly strong operator - dec.pentate(2, 4.28) and dec.pentate(10, 2.37) are already too huge for break_eternity.js!
+    // https://en.wikipedia.org/wiki/Pentation
+    public BigDouble pentate(double height = 2, dynamic? payload = null) {
+        if (payload is null) {
+            payload = FC_NN(1, 0, 1);
+        }
+
+        BigDouble p = D(payload);
+        var oldheight = height;
+        height = Math.Truncate(height);
+        var fracheight = oldheight - height;
+
+        //I have no idea if this is a meaningful approximation for pentation to continuous heights, but it is monotonic and continuous.
+        if (fracheight != 0) {
+            if (p.eq(dOne)) {
+                ++height;
+                p = fromDouble(fracheight);
+            }
+            else {
+                if (eq(10)) {
+                    p = payload.p(fracheight);
+                }
+                else {
+                    p = p.layeradd(fracheight, this);
+                }
+            }
+        }
+
+        for (var i = 0; i < height; ++i) {
+            p = tetrate(p.toDouble());
+            //bail if we're NaN
+            if (!isFinite(p.layer) || !isFinite(p.mag)) {
+                return p.normalize();
+            }
+
+            //give up after 10 iterations if nothing is happening
+            if (i > 10) {
+                return p;
+            }
+        }
+
+        return p;
+    }
+
+    // trig functions!
+    public BigDouble sin() {
+        if (mag < 0) {
+            return this;
+        }
+
+        if (layer == 0) {
+            return fromDouble(Math.Sin(sign * mag));
+        }
+
+        return FC_NN(0, 0, 0);
+    }
+
+    public BigDouble cos() {
+        if (mag < 0) {
+            return dOne;
+        }
+
+        if (layer == 0) {
+            return fromDouble(Math.Cos(sign * mag));
+        }
+
+        return FC_NN(0, 0, 0);
+    }
+
+    public BigDouble tan() {
+        if (mag < 0) {
+            return this;
+        }
+
+        if (layer == 0) {
+            return fromDouble(Math.Tan(sign * mag));
+        }
+
+        return FC_NN(0, 0, 0);
+    }
+
+    public BigDouble asin() {
+        if (mag < 0) {
+            return this;
+        }
+
+        if (layer == 0) {
+            return fromDouble(Math.Asin(sign * mag));
+        }
+
+        return FC_NN(double.NaN, double.NaN, double.NaN);
+    }
+
+    public BigDouble acos() {
+        if (mag < 0) {
+            return fromDouble(Math.Acos(this.toDouble()));
+        }
+
+        if (layer == 0) {
+            return fromDouble(Math.Acos(sign * mag));
+        }
+
+        return FC_NN(double.NaN, double.NaN, double.NaN);
+    }
+
+    public BigDouble atan() {
+        if (mag < 0) {
+            return this;
+        }
+
+        if (layer == 0) {
+            return fromDouble(Math.Atan(sign * mag));
+        }
+
+        return fromDouble(Math.Atan(sign * 1.79e308d));
+    }
+
+    public BigDouble sinh() {
+        return exp().sub(negate().exp()).div(2);
+    }
+
+    public BigDouble cosh() {
+        return exp().add(negate().exp()).div(2);
+    }
+
+    public BigDouble tanh() {
+        return sinh().div(cosh());
+    }
+
+    public BigDouble asinh() {
+        return ln(add(sqr().add(1).sqrt()));
+    }
+
+    public BigDouble acosh() {
+        return ln(add(sqr().sub(1).sqrt()));
+    }
+
+    public BigDouble atanh() {
+        if (abs().gte(1)) {
+            return FC_NN(double.NaN, double.NaN, double.NaN);
+        }
+
+        return ln(add(1).div(fromDouble(1).sub(this))).div(2);
+    }
+
+    /**
    * Joke function from Realm Grinder
    */
-  public ascensionPenalty(ascensions: DecimalSource){
-    if (ascensions === 0) {
-      return this;
+    public BigDouble ascensionPenalty(dynamic ascensions) {
+        return ascensions == 0 ? this : (BigDouble)root(pow(10, ascensions));
     }
 
-    return this.root(Decimal.pow(10, ascensions));
-  }
-
-  /**
+    /**
    * Joke function from Cookie Clicker. It's 'egg'
    */
-  public egg(){
-    return this.add(9);
-  }
+    public BigDouble egg() {
+        return add(9);
+    }
 
-  public lessThanOrEqualTo(other: DecimalSource): boolean {
-    return this.cmp(other) < 1;
-  }
+    public bool lessThanOrEqualTo(dynamic other) {
+        return cmp(other) < 1;
+    }
 
-  public lessThan(other: DecimalSource): boolean {
-    return this.cmp(other) < 0;
-  }
+    public bool lessThan(dynamic other) {
+        return cmp(other) < 0;
+    }
 
-  public greaterThanOrEqualTo(other: DecimalSource): boolean {
-    return this.cmp(other) > -1;
-  }
+    public bool greaterThanOrEqualTo(dynamic other) {
+        return cmp(other) > -1;
+    }
 
-  public greaterThan(other: DecimalSource): boolean {
-    return this.cmp(other) > 0;
-  }
+    public bool greaterThan(dynamic other) {
+        return cmp(other) > 0;
+    }
 
-  public int CompareTo(object? obj) {
-        throw new NotImplementedException();
+    public int CompareTo(object? obj) {
+        return compare(obj);
     }
 
     public int CompareTo(BigDouble other) {
-        throw new NotImplementedException();
+        return compare(other);
     }
 
     public bool Equals(BigDouble other) {
-        throw new NotImplementedException();
+        return equals(other);
     }
-
+    
     /// <summary>
     /// We need this lookup table because Math.pow(10, exponent) when exponent's absolute value
     /// is large is slightly inaccurate. you can fix it with the power of math... or just make
     /// a lookup table. Faster AND simpler.
     /// </summary>
-    private static class PowersOf10 {
-        private static double[] POWERS { get; } = new double[DOUBLE_EXP_MAX - DOUBLE_EXP_MIN];
-        private const long INDEX_OF_0 = -DOUBLE_EXP_MIN - 1;
+    private static class PowersOf10
+    {
+        private static double[] powers { get; } = new double[DOUBLE_EXP_MAX - DOUBLE_EXP_MIN];
 
-        static PowersOf10() {
+        private const long indexOf0 = -DOUBLE_EXP_MIN - 1;
+
+        static PowersOf10()
+        {
             var index = 0;
-            for (var i = 0; i < POWERS.Length; i++) {
-                POWERS[index++] = double.Parse("1e" + (i - INDEX_OF_0), CultureInfo.InvariantCulture);
+            for (var i = 0; i < powers.Length; i++)
+            {
+                powers[index++] = double.Parse("1e" + (i - indexOf0), CultureInfo.InvariantCulture);
             }
         }
 
-        public static double lookup(long power) {
-            return POWERS[INDEX_OF_0 + power];
+        public static double lookup(long power)
+        {
+            return powers[indexOf0 + power];
         }
     }
 
-    private struct PrivateConstructorArg {
+    public override bool Equals(object obj)
+    {
+        return obj is BigDouble bigDouble && Equals(bigDouble);
+    }
+
+    public static bool operator ==(BigDouble left, BigDouble right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(BigDouble left, BigDouble right)
+    {
+        return !(left == right);
+    }
+    
+    public static bool operator <(BigDouble left, BigDouble right)
+    {
+        return left.lessThan(right);
+    }
+    
+    public static bool operator <=(BigDouble left, BigDouble right)
+    {
+        return left.lessThanOrEqualTo(right);
+    }
+    
+    public static bool operator >(BigDouble left, BigDouble right)
+    {
+        return left.greaterThan(right);
+    }
+    
+    public static bool operator >=(BigDouble left, BigDouble right)
+    {
+        return left.greaterThanOrEqualTo(right);
+    }
+    
+    public override int GetHashCode() {
+        return HashCode.Combine(sign, mag, layer);
     }
 }
 
