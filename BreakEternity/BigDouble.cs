@@ -366,8 +366,14 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     public static readonly BigDouble dNumberMin = FC(1, 0, double.MinValue);
 
     private static readonly LRUCache<string, BigDouble> fromStringCache = new(DEFAULT_FROM_STRING_CACHE_SIZE);
+    
+    // 0 = -1, 1 = 0, 2 = 1
+    private byte signStorage = 0;
 
-    public double sign = 0;
+    public double sign {
+        get => signStorage - 1;
+        set => signStorage = (byte)(value + 1);
+    }
     public double mag = 0;
     public double layer = 0;
 
