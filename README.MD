@@ -4,10 +4,10 @@ Despite handling a wider range of numbers, execution time is comparable (within 
 
 ## Installation
 
-Just drop [BigDouble.cs](https://github.com/Pannoniae/BreakEternity.cs/blob/master/BreakEternity/BigDouble.cs) file into your `Scripts` folder and use `BigDouble` type instead of `double` in your scripts
+Just drop [BigDouble.cs](https://github.com/Pannoniae/BreakEternity.cs/blob/master/BreakEternity/BigDouble.cs) and [LRUCache.cs](https://github.com/Pannoniae/BreakEternity.cs/blob/master/BreakEternity/LRUCache.cs) files into a folder of your convenience and use the `BigDouble` type instead of `double` in your program.
 
 ## BigDouble
-`BigDouble` is a `double` replacement for very large numbers.
+`BigDouble` is a `double` replacement for very veryyyy large numbers.
 
 # Special thanks:
 - [Patashu](https://github.com/Patashu) - for amazing library and major effort in porting to C#
@@ -19,3 +19,7 @@ Just drop [BigDouble.cs](https://github.com/Pannoniae/BreakEternity.cs/blob/mast
 - Razenpok, slabdrill and Hevipelle/Antimatter Dimensions, for inspiration, assistance and testing with the original break_infinity.js and its C# port.
 
 obligatory SEO: number library, big number, big num, bignumber, bignum, big integer, biginteger, bigint, incremental games, idle games, large numbers, huge numbers
+
+# Talk to me, I'm lonely
+
+https://discord.gg/wcqwNPpFqP
