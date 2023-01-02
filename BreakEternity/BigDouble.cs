@@ -384,6 +384,30 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         replaceFromString(value);
     }
 
+    public static bool isNaN(BigDouble value)
+    {
+        return double.IsNaN(value.mag);
+    }
+
+    public static BigDouble PositiveInfinity = new(double.PositiveInfinity);
+
+    public static bool isPositiveInfinity(BigDouble value)
+    {
+        return double.IsPositiveInfinity(value.mag);
+    }
+
+    public static BigDouble NegativeInfinity = new(double.NegativeInfinity);
+
+    public static bool isNegativeInfinity(BigDouble value)
+    {
+        return double.IsNegativeInfinity(value.mag);
+    }
+
+    public static bool isInfinity(BigDouble value)
+    {
+        return double.IsInfinity(value.mag);
+    }
+
     public double m {
         get {
             if (sign == 0) {
@@ -3070,6 +3094,30 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     public static bool operator >=(BigDouble left, BigDouble right)
     {
         return left.greaterThanOrEqualTo(right);
+    }
+    
+    public static BigDouble operator +(BigDouble left, BigDouble right) {
+        return left.add(right);
+    }
+    
+    public static BigDouble operator -(BigDouble left, BigDouble right)
+    {
+        return left.sub(right);
+    }
+    
+    public static BigDouble operator -(BigDouble value)
+    {
+        return value.neg();
+    }
+    
+    public static BigDouble operator *(BigDouble left, BigDouble right)
+    {
+        return left.mul(right);
+    }
+    
+    public static BigDouble operator /(BigDouble left, BigDouble right)
+    {
+        return left.div(right);
     }
     
     public override int GetHashCode() {
