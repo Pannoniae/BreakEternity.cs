@@ -20,6 +20,6 @@ Just drop [BigDouble.cs](https://github.com/Pannoniae/BreakEternity.cs/blob/mast
 
 obligatory SEO: number library, big number, big num, bignumber, bignum, big integer, biginteger, bigint, incremental games, idle games, large numbers, huge numbers
 
-#Talk to me, I'm lonely
+# Talk to me, I'm lonely
 
 https://discord.gg/wcqwNPpFqP
