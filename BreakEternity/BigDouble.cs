@@ -366,16 +366,20 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     public static readonly BigDouble dNumberMin = FC(1, 0, double.MinValue);
 
     private static readonly LRUCache<string, BigDouble> fromStringCache = new(DEFAULT_FROM_STRING_CACHE_SIZE);
-    
-    // 0 = -1, 1 = 0, 2 = 1
-    private byte signStorage = 0;
 
     public double sign {
-        get => signStorage - 1;
-        set => signStorage = (byte)(value + 1);
+        get => (int)((layerStorage >> 62) - 1);
+        set => layerStorage = layerStorage & 0x3FFFFFFFFFFFFFFF | (ulong)(value + 1) << 62;
     }
+
     public double mag = 0;
-    public double layer = 0;
+    private ulong layerStorage = 0;
+
+    public double layer {
+        get => layerStorage & 0x3FFFFFFFFFFFFFFF;
+        // keep only the sign, add the actual value to the bottom
+        set => layerStorage = layerStorage & 0xC000000000000000 | (ulong)value & 0x3FFFFFFFFFFFFFFF;
+    }
 
     public BigDouble(BigDouble value) {
         replaceFromBigDouble(value);
@@ -1651,7 +1655,6 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     }
 
     public BigDouble add(BigDouble value) {
-
         //inf/nan check
         if (!double.IsFinite(layer)) {
             return this;
@@ -1753,7 +1756,6 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
     }
 
     public BigDouble mul(BigDouble value) {
-
         //inf/nan check
         if (!double.IsFinite(layer)) {
             return this;
@@ -1856,6 +1858,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         if (layer == 0) {
             return FC(sign, 0, 1 / mag);
         }
+
         return FC(sign, layer, -mag);
     }
 
@@ -1989,7 +1992,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
    * For example, if you put in 1e-9, then any number closer to the
    * larger number than (larger number)*1e-9 will be considered equal.
    */
-    public bool eqTolerance(BigDouble value, double tolerance) { 
+    public bool eqTolerance(BigDouble value, double tolerance) {
         // https://stackoverflow.com/a/33024979
         if (tolerance == null) {
             tolerance = 1e-7;
@@ -2162,6 +2165,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
             if (Math.Abs(b.toDouble() % 2) % 2 == 1) {
                 return result.neg();
             }
+
             if (Math.Abs(b.toDouble() % 2) % 2 == 0) {
                 return result;
             }
@@ -2401,7 +2405,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         if (height < 0) {
             return iteratedlog(p, this, -height);
         }
-        
+
         var oldheight = height;
         height = Math.Truncate(height);
         var fracheight = oldheight - height;
@@ -2482,7 +2486,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         if (times < 0) {
             return tetrate(b, -times, this);
         }
-        
+
         var result = fromBigDouble(this);
         var fulltimes = times;
         times = Math.Truncate(times);
@@ -2684,7 +2688,7 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
         if (lower <= 0 || upper <= 0) {
             return lower * (1 - frac) + upper * frac;
         }
-        
+
         return Math.Pow(@base,
             (Math.Log(lower) / Math.Log(@base)) * (1 - frac) + (Math.Log(upper) / Math.Log(@base)) * frac);
     }
@@ -2759,7 +2763,9 @@ public struct BigDouble : IComparable, IComparable<BigDouble>, IEquatable<BigDou
 
         //layeradd10: like adding 'diff' to the number's slog(base) representation. Very similar to tetrate base 10 and iterated log base 10. Also equivalent to adding a fractional amount to the number's layer in its break_eternity.js representation.
         if (diff != 0) {
-            return result.layeradd(diff.toDouble(), 10); //safe, only calls positive height 1 payload tetration, slog and log
+            return
+                result.layeradd(diff.toDouble(),
+                    10); //safe, only calls positive height 1 payload tetration, slog and log
         }
 
         return result;

@@ -97,7 +97,7 @@ public class LRUCache<K, V> where K : notnull {
         }
         else {
             // This cache has at least one item in it.
-            node.next = this.first;
+            node.next = first;
             first.prev = node;
             first = node;
         }
