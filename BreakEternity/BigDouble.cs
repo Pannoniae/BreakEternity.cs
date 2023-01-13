@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Collections.Generic;
+using System.Text;
+using Random = System.Random;
 
 namespace BreakEternity {
     using System;

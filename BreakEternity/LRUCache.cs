@@ -1,4 +1,7 @@
-﻿namespace BreakEternity {
+﻿using System;
+using System.Collections.Generic;
+
+namespace BreakEternity {
 
     public class LRUCache<K, V> where K : notnull {
         private readonly Dictionary<K, ListNode<K, V>?> map = new();
